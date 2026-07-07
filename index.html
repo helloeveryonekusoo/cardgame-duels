@@ -463,14 +463,19 @@ img, svg { display:block; }
         await reauthenticateWithCredential(user, cred);
       }
       const uid = user.uid;
-      // Firestoreのプロフィールと待合室エントリを削除
-      try { await deleteDoc(doc(db, "players", uid)); } catch(e){}
+      // Firestoreのプロフィール(順位表の元データ)を削除 → 順位からも消える
+      // ※Firestoreルールで players の delete を許可しておく必要がある
+      let profileDeleted = false;
+      try {
+        await deleteDoc(doc(db, "players", uid));
+        profileDeleted = true;
+      } catch(e){ console.warn('プロフィール削除失敗(ルール未設定の可能性):', e); }
       try { await deleteDoc(doc(db, "queue", uid)); } catch(e){}
       // Authユーザーを削除
       await deleteUser(user);
       window.FB.currentUser = null;
       window.FB.currentProfile = null;
-      return true;
+      return { ok:true, profileDeleted };
     },
 
     // 自分のプロフィールを再取得
@@ -479,6 +484,36 @@ img, svg { display:block; }
       const snap = await getDoc(doc(db, "players", auth.currentUser.uid));
       window.FB.currentProfile = snap.exists() ? snap.data() : null;
       return window.FB.currentProfile;
+    },
+
+    // ── アカウントに紐づくデッキ保存(players/{uid} の decks フィールドに格納)──
+    // デッキ一覧を取得 { name: [cardId,...], ... }
+    async getDecks(){
+      if (!auth.currentUser) return {};
+      const snap = await getDoc(doc(db, "players", auth.currentUser.uid));
+      if (!snap.exists()) return {};
+      const data = snap.data();
+      return data.decks || {};
+    },
+    // デッキを保存(同名は上書き)
+    async saveDeck(name, cardIds){
+      if (!auth.currentUser) throw new Error('not-logged-in');
+      const ref = doc(db, "players", auth.currentUser.uid);
+      const snap = await getDoc(ref);
+      const decks = (snap.exists() && snap.data().decks) ? snap.data().decks : {};
+      decks[name] = cardIds;
+      await updateDoc(ref, { decks });
+      return decks;
+    },
+    // デッキを削除
+    async deleteDeck(name){
+      if (!auth.currentUser) throw new Error('not-logged-in');
+      const ref = doc(db, "players", auth.currentUser.uid);
+      const snap = await getDoc(ref);
+      const decks = (snap.exists() && snap.data().decks) ? snap.data().decks : {};
+      delete decks[name];
+      await updateDoc(ref, { decks });
+      return decks;
     },
 
     // ランキング上位を取得
@@ -769,7 +804,7 @@ const RAW_CARDS = [
   {id:'d13', civ:'dark', type:'creature', name:'屍鬼将ゾンバイン', cost:7, power:8000, abilities:[], etb:{"type": "multiDiscard", "count": 2}},
   {id:'d14', civ:'dark', type:'spell', name:'闇の処刑', cost:3, effect:{"type": "destroyAny"}},
   {id:'d15', civ:'dark', type:'spell', name:'手札破壊', cost:3, effect:{"type": "discardCard"}},
-  {id:'m1', civ:'multi', civs:['water','light'], type:'creature', name:'時の法皇 ミラダンテXII', cost:4, power:12000, abilities:["speed","multiBreak","guard"], etb:{"type": "miradante"}, p1Only:true},
+  {id:'m1', civ:'multi', civs:['water','light'], type:'creature', name:'時の法皇 ミラダンテXII', cost:4, power:12000, abilities:["speed","multiBreak","guard"], etb:{"type": "miradante"}},
   {id:'m2', civ:'multi', civs:['fire','nature'], type:'creature', name:'ドキラゴン剣', cost:6, power:12000, abilities:["speed","multiBreak"], etb:{"type": "sequence", "steps": [{"type":"draw","value":2},{"type":"freeSummon","budget":4}]}},
   {id:'w18', civ:'water', type:'creature', name:'詠唱の魔導士ルーン', cost:3, power:2000, abilities:["spellBoost","freezeCast"]},
   {id:'w19', civ:'water', type:'creature', name:'蒼波の襲撃者ザッパ', cost:4, power:3000, abilities:["speed","tideBreak"]},
@@ -1454,9 +1489,10 @@ function triggerEffect(state, controllerIdx, effect) {
     case 'ramp': {
       if (controller.deck.length === 0) { log(state, `(山札がなく何も起きなかった)`); return; }
       const c = controller.deck.shift();
-      c.tapped = false;
+      const cd = getCardDef(c.defId);
+      c.tapped = (cd.civs && cd.civs.length > 1); // 多色カードはタップ状態でマナに置かれる
       controller.mana.push(c);
-      log(state, `${controller.name} の山札の上から1枚がマナゾーンに置かれた。`);
+      log(state, `${controller.name} の山札の上から1枚がマナゾーンに置かれた${c.tapped ? '(多色のためタップ状態)' : ''}。`);
       return;
     }
     case 'addShield': {
@@ -1509,11 +1545,15 @@ function triggerEffect(state, controllerIdx, effect) {
     }
     case 'multiRamp': {
       const cnt = effect.count || 2;
-      let added = 0;
+      let added = 0, tappedAny = false;
       for (let i = 0; i < cnt && controller.deck.length > 0; i++) {
-        const c = controller.deck.shift(); c.tapped = false; controller.mana.push(c); added++;
+        const c = controller.deck.shift();
+        const cd = getCardDef(c.defId);
+        c.tapped = (cd.civs && cd.civs.length > 1); // 多色カードはタップ状態
+        if (c.tapped) tappedAny = true;
+        controller.mana.push(c); added++;
       }
-      if (added > 0) log(state, `${controller.name} の山札の上から${added}枚がマナゾーンに置かれた。`);
+      if (added > 0) log(state, `${controller.name} の山札の上から${added}枚がマナゾーンに置かれた${tappedAny ? '(多色はタップ状態)' : ''}。`);
       return;
     }
     case 'multiAddShield': {
@@ -2083,6 +2123,8 @@ let leaderboardRows=null;  // ランキングデータ
 const BOT_RATING = 1600;
 
 function decideFirstIdx(){
+  // ランクマッチは必ずランダム(手番選択を無視)
+  if(rankedMatch) return Math.random()<0.5?0:1;
   if(turnChoice==='first') return 0;
   if(turnChoice==='second') return 1;
   return Math.random()<0.5?0:1;
@@ -2092,11 +2134,25 @@ function esc(s) { return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').re
 
 /* ── Deck helpers ── */
 function deckCount(id){ return deckInProgress.filter(x=>x===id).length; }
-function deckAdd(id)  { if(deckCount(id)<4&&deckInProgress.length<60) deckInProgress.push(id); }
+function deckAdd(id)  { if(deckCount(id)<4&&deckInProgress.length<40) deckInProgress.push(id); }
 function deckRemove(id){ const i=deckInProgress.lastIndexOf(id); if(i!==-1) deckInProgress.splice(i,1); }
 function saveDeck(n,d){ try{const s=JSON.parse(localStorage.getItem('five-crest-decks')||'{}');s[n]=d;localStorage.setItem('five-crest-decks',JSON.stringify(s));return true;}catch{return false;} }
 function deleteDeck(n){ try{const s=JSON.parse(localStorage.getItem('five-crest-decks')||'{}');delete s[n];localStorage.setItem('five-crest-decks',JSON.stringify(s));return true;}catch{return false;} }
 function loadSavedDecks(){ try{return JSON.parse(localStorage.getItem('five-crest-decks')||'{}');}catch{return {};} }
+
+// アカウントに紐づくデッキのキャッシュ。ログイン中はこちらを使い、未ログインならlocalStorage。
+let accountDecks = {};
+let accountDecksLoaded = false;
+// 現在有効なデッキ一覧を返す(ログイン中はアカウント、そうでなければローカル)
+function currentSavedDecks(){ return account ? accountDecks : loadSavedDecks(); }
+// アカウントのデッキをFirebaseから読み込んでキャッシュ&再描画
+async function loadAccountDecks(){
+  if(!account || !window.FB || !window.FB.getDecks){ accountDecks={}; accountDecksLoaded=true; return; }
+  try{ accountDecks = await window.FB.getDecks() || {}; }
+  catch(e){ accountDecks={}; }
+  accountDecksLoaded=true;
+  if(ui.screen==='deckBuilder') render();
+}
 
 /* ── Turn logic ── */
 function isMyDecision(){
@@ -2706,8 +2762,15 @@ function deckBuilderScreenHTML(){
   const total=deckInProgress.length, isReady=total>=40;
   const counts={};for(const id of deckInProgress)counts[id]=(counts[id]||0)+1;
   const civOrder=Object.keys(CIVS);
-  let filtered=RAW_CARDS.filter(c=>!c.p1Only||ui.role==='host');
+  let filtered=RAW_CARDS.slice();
   if(deckFilter!=='all')filtered=filtered.filter(c=>c.civ===deckFilter);
+  // 色順(火→水→自然→光→闇→多色)+コスト昇順で並べる
+  filtered=filtered.slice().sort((a,b)=>{
+    const ci=civOrder.indexOf(a.civ)-civOrder.indexOf(b.civ);
+    if(ci!==0)return ci;
+    if(a.cost!==b.cost)return a.cost-b.cost;
+    return a.name.localeCompare(b.name,'ja');
+  });
   const poolHTML=filtered.map(c=>{
     const cnt=deckCount(c.id),atMax=cnt>=4;
     return `<div class="pool-wrap${atMax?' at-max':''}" data-action="pool-add" data-id="${c.id}" data-name="${esc(c.name)}">${cardHTML(c.id,{})}${cnt>0?`<div class="pool-badge${atMax?' maxed':''}">×${cnt}</div>`:''}</div>`;
@@ -2725,7 +2788,10 @@ function deckBuilderScreenHTML(){
     }
   }
   const civFilters=['all',...civOrder].map(k=>{const label=k==='all'?'すべて':CIVS[k].name;const color=k!=='all'?CIVS[k].color:'#777';const active=deckFilter===k;return `<button class="flt-btn${active?' active':''}" data-action="db-filter" data-civ="${k}" style="${active?`--fc:${color}`:''}">${label}</button>`;}).join('');
-  const saved=loadSavedDecks(),savedOpts=Object.keys(saved).map(n=>`<option value="${esc(n)}">${esc(n)}</option>`).join('');
+  const saved=currentSavedDecks(),savedOpts=Object.keys(saved).map(n=>`<option value="${esc(n)}">${esc(n)}</option>`).join('');
+  const deckStoreHint = account
+    ? `<span style="font-size:10px;color:var(--civ-light);">☁️ ${account.id}のデッキ</span>`
+    : `<span style="font-size:10px;color:var(--text-faint);">端末に保存(ログインで共有保存)</span>`;
   const poolHidden=ui.deckView==='list'?'db-hidden':'';
   const listHidden=ui.deckView==='pool'?'db-hidden':'';
   const connStatus = conn&&conn.open ? `<div class="conn-pill"><div class="conn-dot ok"></div>接続中</div>` : `<div class="conn-pill"><div class="conn-dot wait"></div>待機中</div>`;
@@ -2746,6 +2812,7 @@ function deckBuilderScreenHTML(){
           <select id="deckLoadSel" style="font-size:11px;background:var(--bg-panel-raised);border:1px solid rgba(255,255,255,.12);color:var(--text-primary);border-radius:var(--r-sm);padding:4px 6px;">${savedOpts||'<option value="">保存なし</option>'}</select>
           <button class="btn btn-ghost btn-sm" data-action="db-load">読み込み</button>
           <button class="btn btn-ghost btn-sm" data-action="db-delete" style="color:var(--civ-fire);">削除</button>
+          ${deckStoreHint}
         </div>
       </div>
     </div>
@@ -2761,7 +2828,7 @@ function deckBuilderScreenHTML(){
     </div>
     <div class="db-main">
       <div class="db-pool ${poolHidden}" id="dbPool">${poolHTML}</div>
-      <div class="db-sidebar ${listHidden}">${deckHTML}</div>
+      <div class="db-sidebar ${listHidden}" id="dbSidebar">${deckHTML}</div>
     </div>
   </div>`;
 }
@@ -3254,6 +3321,9 @@ function render(){
   // Remember hand scroll positions so using a card doesn't jump the hand back to the start.
   const _handScroll={};
   document.querySelectorAll('.hand-row[id]').forEach(r=>{ _handScroll[r.id]=r.scrollLeft; });
+  // デッキビルダーのリスト/プールの縦スクロール位置を保存(枚数変更で先頭に飛ばないように)
+  const _dbSidebar=document.getElementById('dbSidebar'); const _dbSidebarTop=_dbSidebar?_dbSidebar.scrollTop:0;
+  const _dbPool=document.getElementById('dbPool'); const _dbPoolTop=_dbPool?_dbPool.scrollTop:0;
   let html;
   if     (ui.screen==='start')           html=startScreenHTML();
   else if(ui.screen==='auth')            html=authScreenHTML();
@@ -3281,9 +3351,14 @@ function render(){
   applyBattleBg();
   // Restore hand scroll positions captured before the re-render.
   Object.keys(_handScroll).forEach(id=>{ const r=document.getElementById(id); if(r) r.scrollLeft=_handScroll[id]; });
+  // デッキビルダーの縦スクロール位置を復元
+  { const s=document.getElementById('dbSidebar'); if(s) s.scrollTop=_dbSidebarTop;
+    const p=document.getElementById('dbPool'); if(p) p.scrollTop=_dbPoolTop; }
   const feed=document.getElementById('logFeed');
   if(feed)feed.scrollTop=feed.scrollHeight;
   if(ui.screen==='deckBuilder'){
+    // ログイン中でまだアカウントのデッキを読み込んでいなければ取得
+    if(account && !accountDecksLoaded){ accountDecksLoaded=true; loadAccountDecks(); }
     const srch=document.getElementById('dbSrch');
     if(srch){
       srch.addEventListener('input',e=>{
@@ -3406,13 +3481,26 @@ document.getElementById('app').addEventListener('click',e=>{
     case 'deck-rem':   deckRemove(el.dataset.id); render(); break;
     case 'db-save': {
       const n=(document.getElementById('deckNameInp')?.value?.trim()||'マイデッキ').slice(0,15);
-      saveDeck(`[${ui.role==='host'?'P1':'P2'}] ${n}`,[...deckInProgress]);
-      alert(`「${n}」を保存しました。`); render(); break;
+      if(deckInProgress.length!==40){ alert('デッキは40枚ちょうどにしてから保存してください。'); break; }
+      if(account && window.FB && window.FB.saveDeck){
+        // アカウントに保存(全端末で共有)
+        (async()=>{
+          try{
+            accountDecks = await window.FB.saveDeck(n,[...deckInProgress]);
+            alert(`「${n}」をアカウントに保存しました。`);
+            render();
+          }catch(e){ alert('保存に失敗しました。通信環境を確認してください。'); }
+        })();
+      } else {
+        saveDeck(n,[...deckInProgress]);
+        alert(`「${n}」を保存しました。`); render();
+      }
+      break;
     }
     case 'db-load': {
       const sel=document.getElementById('deckLoadSel');const n=sel?.value;
-      if(n){const d=loadSavedDecks();if(d[n]){
-        deckInProgress=[...d[n]].filter(id=>{const c=getCardDef(id);return c&&(!c.p1Only||ui.role==='host');});
+      if(n){const d=currentSavedDecks();if(d[n]){
+        deckInProgress=[...d[n]].filter(id=>{const c=getCardDef(id);return !!c;});
         render();
       }} break;
     }
@@ -3420,7 +3508,14 @@ document.getElementById('app').addEventListener('click',e=>{
       const sel=document.getElementById('deckLoadSel');const n=sel?.value;
       if(!n){ alert('削除するデッキを選んでください。'); break; }
       if(confirm(`「${n}」を削除しますか?この操作は取り消せません。`)){
-        deleteDeck(n); render();
+        if(account && window.FB && window.FB.deleteDeck){
+          (async()=>{
+            try{ accountDecks = await window.FB.deleteDeck(n); render(); }
+            catch(e){ alert('削除に失敗しました。'); }
+          })();
+        } else {
+          deleteDeck(n); render();
+        }
       }
       break;
     }
@@ -3501,6 +3596,19 @@ document.getElementById('app').addEventListener('click',e=>{
 
     /* ── Post-game ── */
     case 'play-again':
+      // ランクマッチ: デッキ作成画面に戻り、もう一度マッチングする
+      if(rankedMatch){
+        cpuMode=false; rankedMatch=true; matchmaking=true;
+        opponentIsHuman=false; battleBg=null;
+        _rankedReported=false; lastRatingResult=null;
+        hostDeckIds=null; guestDeckIds=null;
+        ui.role='host'; ui.myIdx=0; playerName=account?account.id:playerName;
+        deckInProgress=[]; deckFilter='all'; deckSearch=''; ui.deckView='pool';
+        ui.selectedAttackerUid=null; ui.modal=null; ui.graveyardView=null;
+        try{ destroyPeer(); }catch(e){}
+        ui.screen='deckBuilder'; render();
+        break;
+      }
       if(cpuMode){ deckInProgress=[...(hostDeckIds||[])]; startCpuGame(); break; }
       if(ui.role==='host'){
         hostDeckIds=null;guestDeckIds=null;
