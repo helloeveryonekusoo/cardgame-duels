@@ -1,0 +1,487 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>FIVE CREST カード提案ボックス</title>
+<style>
+  :root{
+    --bg:#0d1018; --panel:#161b28; --panel2:#1e2436; --line:rgba(255,255,255,.1);
+    --text:#e8ecf5; --muted:#93a0b8; --faint:#5f6b82;
+    --fire:#e2542b; --water:#2f8fd1; --nature:#5a9c3f; --light:#d9b03c; --dark:#8b6bc4; --multi:#4faf9e;
+    --accent:#4faf9e; --r:14px; --rs:9px;
+  }
+  *{box-sizing:border-box;}
+  html,body{margin:0;padding:0;}
+  body{background:linear-gradient(160deg,#0d1018,#141a28);color:var(--text);font-family:-apple-system,BlinkMacSystemFont,"Segoe UI","Hiragino Kaku Gothic ProN",Meiryo,sans-serif;min-height:100vh;-webkit-text-size-adjust:100%;}
+  #app{max-width:560px;margin:0 auto;padding:18px 16px 60px;}
+  .logo{text-align:center;margin:8px 0 4px;}
+  .logo .t{font-size:20px;font-weight:800;letter-spacing:.04em;background:linear-gradient(135deg,var(--fire),var(--light),var(--water));-webkit-background-clip:text;background-clip:text;-webkit-text-fill-color:transparent;}
+  .logo .s{font-size:12px;color:var(--muted);margin-top:2px;}
+  .card-panel{background:var(--panel);border:1px solid var(--line);border-radius:var(--r);padding:16px;margin-top:16px;box-shadow:0 6px 24px rgba(0,0,0,.3);}
+  .field{margin-bottom:15px;}
+  .field label{display:block;font-size:12px;font-weight:700;color:var(--muted);margin-bottom:6px;}
+  .field .hint{font-size:10px;color:var(--faint);font-weight:400;margin-left:4px;}
+  input[type=text],input[type=number],input[type=password],textarea,select{
+    width:100%;background:var(--panel2);border:1px solid var(--line);border-radius:var(--rs);
+    color:var(--text);font-size:15px;padding:11px 12px;font-family:inherit;}
+  textarea{resize:vertical;min-height:70px;line-height:1.6;}
+  input:focus,textarea:focus,select:focus{outline:none;border-color:var(--accent);}
+  .seg{display:flex;flex-wrap:wrap;gap:7px;}
+  .seg button{flex:1;min-width:54px;background:var(--panel2);border:1.5px solid var(--line);border-radius:var(--rs);color:var(--muted);font-size:13px;font-weight:700;padding:9px 4px;cursor:pointer;transition:all .12s;}
+  .seg button.on{color:#fff;}
+  .seg button[data-civ=fire].on{background:var(--fire);border-color:var(--fire);}
+  .seg button[data-civ=water].on{background:var(--water);border-color:var(--water);}
+  .seg button[data-civ=nature].on{background:var(--nature);border-color:var(--nature);}
+  .seg button[data-civ=light].on{background:var(--light);border-color:var(--light);}
+  .seg button[data-civ=dark].on{background:var(--dark);border-color:var(--dark);}
+  .seg button[data-civ=multi].on{background:var(--multi);border-color:var(--multi);}
+  .seg button.typ.on{background:var(--accent);border-color:var(--accent);}
+  .ability-grid{display:grid;grid-template-columns:1fr 1fr;gap:7px;}
+  .ab-chip{display:flex;align-items:flex-start;gap:7px;background:var(--panel2);border:1.5px solid var(--line);border-radius:var(--rs);padding:8px 9px;cursor:pointer;transition:all .12s;}
+  .ab-chip.on{border-color:var(--accent);background:rgba(79,175,158,.13);}
+  .ab-chip input{margin:2px 0 0;flex-shrink:0;}
+  .ab-chip .ab-t{font-size:12px;font-weight:700;}
+  .ab-chip .ab-d{font-size:9.5px;color:var(--muted);line-height:1.35;margin-top:1px;}
+  .row2{display:flex;gap:10px;}
+  .row2>.field{flex:1;}
+  .btn{width:100%;border:none;border-radius:var(--rs);font-size:15px;font-weight:700;padding:13px;cursor:pointer;font-family:inherit;transition:opacity .12s;}
+  .btn:active{opacity:.8;}
+  .btn-primary{background:linear-gradient(135deg,var(--accent),#3a8f80);color:#fff;}
+  .btn-primary:disabled{opacity:.4;cursor:default;}
+  .btn-ghost{background:transparent;border:1px solid var(--line);color:var(--muted);}
+  .msg{text-align:center;font-size:13px;padding:10px;border-radius:var(--rs);margin-top:12px;}
+  .msg.ok{background:rgba(90,156,63,.16);color:#a3d989;}
+  .msg.err{background:rgba(226,84,43,.16);color:#f0a58e;}
+  .preview{background:var(--panel2);border-radius:var(--rs);padding:12px;margin-top:6px;font-size:13px;line-height:1.7;border:1px dashed var(--line);}
+  .preview .pv-name{font-weight:800;font-size:15px;}
+  .preview .pv-meta{color:var(--muted);font-size:11px;margin:3px 0 6px;}
+  .preview .pv-ab{display:inline-block;background:rgba(255,255,255,.08);border-radius:6px;padding:1px 7px;font-size:11px;margin:2px 3px 0 0;}
+  .foot{text-align:center;font-size:11px;color:var(--faint);margin-top:22px;line-height:1.7;}
+  .tab-bar{display:flex;gap:8px;margin-top:14px;}
+  .tab-bar button{flex:1;background:var(--panel);border:1px solid var(--line);border-radius:var(--rs);color:var(--muted);font-size:13px;font-weight:700;padding:10px;cursor:pointer;}
+  .tab-bar button.on{background:var(--accent);color:#fff;border-color:var(--accent);}
+  .req-item{background:var(--panel);border:1px solid var(--line);border-radius:var(--r);padding:13px;margin-top:11px;}
+  .req-item .ri-head{display:flex;justify-content:space-between;align-items:center;gap:8px;}
+  .req-item .ri-name{font-weight:800;font-size:15px;}
+  .req-item .ri-by{font-size:11px;color:var(--muted);}
+  .req-item .ri-time{font-size:10px;color:var(--faint);}
+  .req-item .ri-body{font-size:13px;line-height:1.7;margin-top:7px;color:var(--text);}
+  .req-item .ri-json{font-size:10px;color:var(--faint);background:var(--panel2);border-radius:8px;padding:8px;margin-top:8px;white-space:pre-wrap;word-break:break-all;font-family:ui-monospace,monospace;}
+  .civ-dot{display:inline-block;width:10px;height:10px;border-radius:50%;vertical-align:middle;margin-right:4px;}
+  .del-btn{background:transparent;border:1px solid rgba(226,84,43,.5);color:var(--fire);border-radius:8px;font-size:11px;padding:4px 10px;cursor:pointer;}
+  .copy-btn{background:transparent;border:1px solid var(--line);color:var(--muted);border-radius:8px;font-size:11px;padding:4px 10px;cursor:pointer;}
+  .loading{text-align:center;color:var(--muted);padding:30px;font-size:13px;}
+  a.gamelink{color:var(--accent);text-decoration:none;}
+</style>
+</head>
+<body>
+<div id="app"><div class="loading">読み込み中...</div></div>
+
+<script type="module">
+  import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
+  import { getAuth, signInWithEmailAndPassword, signOut, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
+  import { getFirestore, collection, addDoc, getDocs, deleteDoc, doc, query, orderBy, limit, serverTimestamp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
+
+  const firebaseConfig = {
+    apiKey: "AIzaSyCI0XWkSTISChmdlw57g1w2V5E7rFN8CRo",
+    authDomain: "unchicardgame.firebaseapp.com",
+    projectId: "unchicardgame",
+    storageBucket: "unchicardgame.firebasestorage.app",
+    messagingSenderId: "663413165754",
+    appId: "1:663413165754:web:17c230df85aea894c0bc83",
+  };
+  const fbApp = initializeApp(firebaseConfig);
+  const auth = getAuth(fbApp);
+  const db = getFirestore(fbApp);
+
+  // ── 管理者(あなた)のアカウントID。ここに書いたIDでログインすると閲覧モードが使えます ──
+  const OWNER_ID = "akira";   // ← あなたのゲーム内アカウントIDに変更してください
+  function idToEmail(id){ return id.toLowerCase().replace(/[^a-z0-9_]/g,'') + "@fivecrest.local"; }
+
+  window.RB = {
+    currentUser: null,
+    async loginOwner(id, pw){
+      const cred = await signInWithEmailAndPassword(auth, idToEmail(id), pw);
+      return cred.user;
+    },
+    async logout(){ await signOut(auth); },
+    // リクエストを投稿(誰でも可)
+    async submit(data){
+      await addDoc(collection(db, "cardRequests"), {
+        ...data,
+        createdAt: serverTimestamp(),
+      });
+    },
+    // 全リクエストを取得(管理者のみ・ルールで制限)
+    async getAll(){
+      const q = query(collection(db, "cardRequests"), orderBy("createdAt", "desc"), limit(200));
+      const snap = await getDocs(q);
+      const rows = [];
+      snap.forEach(d => rows.push({ _id: d.id, ...d.data() }));
+      return rows;
+    },
+    async remove(id){ await deleteDoc(doc(db, "cardRequests", id)); },
+  };
+  window.OWNER_ID = OWNER_ID;
+
+  onAuthStateChanged(auth, (user) => {
+    window.RB.currentUser = user;
+    if (typeof window.onAuthReady === 'function') window.onAuthReady(user);
+  });
+</script>
+
+<script>
+/* ── データ定義(ゲーム本体と揃える) ── */
+const CIVS = {
+  fire:   { name:'火',   color:'#e2542b' },
+  water:  { name:'水',   color:'#2f8fd1' },
+  nature: { name:'自然', color:'#5a9c3f' },
+  light:  { name:'光',   color:'#d9b03c' },
+  dark:   { name:'闇',   color:'#8b6bc4' },
+  multi:  { name:'多色', color:'#4faf9e' },
+};
+const ABILITIES = [
+  { key:'speed',        t:'速攻',      d:'出たターンに攻撃できる' },
+  { key:'guard',        t:'ガード',    d:'相手の攻撃をブロックできる' },
+  { key:'multiBreak',   t:'連撃',      d:'シールドを2枚ブレイク' },
+  { key:'powerBreak',   t:'剛撃',      d:'パワー6000毎にブレイク+1' },
+  { key:'deathtouch',   t:'毒針',      d:'バトルで相手を必ず破壊' },
+  { key:'shieldTrigger',t:'S・トリガー',d:'シールドから無料で使える' },
+  { key:'ambush',       t:'奇襲',      d:'ブレイク時に無料でプレイ' },
+  { key:'spellBoost',   t:'詠唱',      d:'呪文のコストを1軽減' },
+  { key:'freezeCast',   t:'凍結',      d:'呪文使用時に相手1体を凍結' },
+  { key:'tideBreak',    t:'潮撃',      d:'水が多いとシールド3枚ブレイク' },
+  { key:'graveSummon',  t:'墓地召喚',  d:'墓地からコスト-1で召喚' },
+  { key:'slowField',    t:'時滞',      d:'相手は出たターン攻撃不可' },
+];
+
+/* ── 状態 ── */
+let mode = 'submit';       // 'submit' | 'admin'
+let account = null;        // ログイン中の管理者
+let form = freshForm();
+let flash = null;          // {type:'ok'|'err', text}
+let adminRows = null;      // 管理者のリクエスト一覧
+let adminError = '';
+let authBusy = false;
+
+function freshForm(){
+  return { type:'creature', civ:'fire', name:'', cost:'', power:'', abilities:[], effectText:'', note:'', by:'' };
+}
+function esc(s){ return String(s==null?'':s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
+
+/* ── 描画 ── */
+function render(){
+  const app = document.getElementById('app');
+  let html = `<div class="logo"><div class="t">FIVE CREST</div><div class="s">🃏 新カード提案ボックス</div></div>`;
+
+  // 管理者ならタブ表示
+  if(account){
+    html += `<div class="tab-bar">
+      <button class="${mode==='submit'?'on':''}" data-action="tab-submit">✍ 投稿する</button>
+      <button class="${mode==='admin'?'on':''}" data-action="tab-admin">📥 届いた提案</button>
+    </div>`;
+  }
+
+  if(mode==='admin' && account){
+    html += adminHTML();
+  } else {
+    html += submitHTML();
+  }
+
+  // フッター(管理者ログインへの導線 / ログアウト)
+  if(account){
+    html += `<div class="foot">管理者としてログイン中: <b>${esc(account)}</b>　<a href="#" data-action="logout" class="gamelink">ログアウト</a></div>`;
+  } else {
+    html += `<div class="foot"><a href="#" data-action="show-login" class="gamelink">管理者ログイン</a>（提案を見る人用）<br>提案は誰でも送れます。ログインは不要です。</div>`;
+  }
+
+  app.innerHTML = html;
+  bindDynamic();
+}
+
+function submitHTML(){
+  const civBtns = Object.keys(CIVS).map(k=>`<button data-civ="${k}" class="${form.civ===k?'on':''}" data-action="set-civ" data-val="${k}">${CIVS[k].name}</button>`).join('');
+  const abGrid = ABILITIES.map(a=>{
+    const on = form.abilities.includes(a.key);
+    return `<div class="ab-chip ${on?'on':''}" data-action="toggle-ab" data-val="${a.key}">
+      <input type="checkbox" ${on?'checked':''} tabindex="-1" readonly>
+      <div><div class="ab-t">${a.t}</div><div class="ab-d">${a.d}</div></div>
+    </div>`;
+  }).join('');
+
+  const isCreature = form.type==='creature';
+
+  return `<div class="card-panel">
+    <div class="field">
+      <label>種類</label>
+      <div class="seg">
+        <button class="typ ${form.type==='creature'?'on':''}" data-action="set-type" data-val="creature">クリーチャー</button>
+        <button class="typ ${form.type==='spell'?'on':''}" data-action="set-type" data-val="spell">命令(呪文)</button>
+      </div>
+    </div>
+
+    <div class="field">
+      <label>文明 <span class="hint">多色は2色の組み合わせを名前や説明に書いてね</span></label>
+      <div class="seg">${civBtns}</div>
+    </div>
+
+    <div class="field">
+      <label>カード名 <span class="hint">必須</span></label>
+      <input type="text" id="f-name" maxlength="24" placeholder="例: 灼熱の巨人ボルク" value="${esc(form.name)}">
+    </div>
+
+    <div class="row2">
+      <div class="field">
+        <label>コスト <span class="hint">1〜15</span></label>
+        <input type="number" id="f-cost" min="1" max="15" placeholder="5" value="${esc(form.cost)}">
+      </div>
+      ${isCreature ? `<div class="field">
+        <label>パワー <span class="hint">例:5000</span></label>
+        <input type="number" id="f-power" min="0" step="500" placeholder="5000" value="${esc(form.power)}">
+      </div>` : `<div class="field"></div>`}
+    </div>
+
+    ${isCreature ? `<div class="field">
+      <label>能力 <span class="hint">当てはまるものを選ぶ(複数可)</span></label>
+      <div class="ability-grid">${abGrid}</div>
+    </div>` : ''}
+
+    <div class="field">
+      <label>${isCreature ? '出た時などの効果' : '呪文の効果'} <span class="hint">${isCreature?'なければ空欄でOK':'必須'}</span></label>
+      <textarea id="f-effect" maxlength="300" placeholder="${isCreature?'例: 出た時、相手のパワー3000以下のクリーチャーを1体破壊する。':'例: カードを2枚引く。'}">${esc(form.effectText)}</textarea>
+    </div>
+
+    <div class="field">
+      <label>ひとこと・こだわり <span class="hint">任意</span></label>
+      <textarea id="f-note" maxlength="300" placeholder="このカードで作りたいコンボや、イメージなど自由に">${esc(form.note)}</textarea>
+    </div>
+
+    <div class="field">
+      <label>あなたの名前 <span class="hint">任意・ニックネーム可</span></label>
+      <input type="text" id="f-by" maxlength="20" placeholder="名無しでもOK" value="${esc(form.by)}">
+    </div>
+
+    ${previewHTML()}
+
+    <button class="btn btn-primary" data-action="submit" style="margin-top:14px;" ${authBusy?'disabled':''}>${authBusy?'送信中...':'📨 この案を送る'}</button>
+    ${flash?`<div class="msg ${flash.type}">${esc(flash.text)}</div>`:''}
+  </div>`;
+}
+
+function previewHTML(){
+  if(!form.name) return '';
+  const civ = CIVS[form.civ];
+  const abTags = form.abilities.map(k=>{const a=ABILITIES.find(x=>x.key===k);return a?`<span class="pv-ab">${a.t}</span>`:'';}).join('');
+  const typeLabel = form.type==='creature'?'クリーチャー':'呪文';
+  return `<div class="preview">
+    <div class="pv-name"><span class="civ-dot" style="background:${civ.color}"></span>${esc(form.name)}</div>
+    <div class="pv-meta">${civ.name} / ${typeLabel} / コスト${esc(form.cost||'?')}${form.type==='creature'?' / パワー'+esc(form.power||'?'):''}</div>
+    ${abTags}
+    ${form.effectText?`<div style="margin-top:6px;font-size:12px;">${esc(form.effectText)}</div>`:''}
+  </div>`;
+}
+
+function adminHTML(){
+  if(adminError) return `<div class="card-panel"><div class="msg err">${esc(adminError)}</div></div>`;
+  if(adminRows===null) return `<div class="loading">提案を読み込み中...</div>`;
+  if(adminRows.length===0) return `<div class="card-panel"><div style="text-align:center;color:var(--muted);padding:20px;">まだ提案は届いていません。</div></div>`;
+
+  const items = adminRows.map(r=>{
+    const civ = CIVS[r.civ] || CIVS.fire;
+    const abTags = (r.abilities||[]).map(k=>{const a=ABILITIES.find(x=>x.key===k);return a?`<span class="pv-ab">${a.t}</span>`:'';}).join('');
+    const when = r.createdAt && r.createdAt.seconds ? new Date(r.createdAt.seconds*1000).toLocaleString('ja-JP') : '';
+    const typeLabel = r.type==='creature'?'クリーチャー':'呪文';
+    // ゲームに貼れるひな型(JSON風)を生成
+    const tmpl = buildTemplate(r);
+    return `<div class="req-item">
+      <div class="ri-head">
+        <div class="ri-name"><span class="civ-dot" style="background:${civ.color}"></span>${esc(r.name||'(無名)')}</div>
+        <button class="del-btn" data-action="del-req" data-id="${r._id}">削除</button>
+      </div>
+      <div class="ri-by">提案者: ${esc(r.by||'名無し')} <span class="ri-time">${when}</span></div>
+      <div class="ri-body">
+        ${civ.name} / ${typeLabel} / コスト${esc(r.cost||'?')}${r.type==='creature'?' / パワー'+esc(r.power||'?'):''}<br>
+        ${abTags}
+        ${r.effectText?`<div style="margin-top:5px;">効果: ${esc(r.effectText)}</div>`:''}
+        ${r.note?`<div style="margin-top:5px;color:var(--muted);">💬 ${esc(r.note)}</div>`:''}
+      </div>
+      <div class="ri-json">${esc(tmpl)}</div>
+      <button class="copy-btn" data-action="copy-tmpl" data-id="${r._id}" style="margin-top:8px;">ひな型をコピー</button>
+    </div>`;
+  }).join('');
+
+  return `<div style="margin-top:4px;">
+    <div style="font-size:12px;color:var(--muted);text-align:center;margin:10px 0;">届いた提案: ${adminRows.length}件</div>
+    ${items}
+  </div>`;
+}
+
+// ゲームのRAW_CARDS形式のひな型を作る(あなたがコピペして調整しやすいように)
+function buildTemplate(r){
+  const abils = (r.abilities||[]).map(a=>`"${a}"`).join(',');
+  let s = `{id:'???', civ:'${r.civ}', type:'${r.type}', name:'${(r.name||'').replace(/'/g,'')}', cost:${r.cost||1}`;
+  if(r.type==='creature') s += `, power:${r.power||0}, abilities:[${abils}]`;
+  if(r.effectText) s += `, /* 効果: ${(r.effectText||'').replace(/\*\//g,'')} */`;
+  s += `}`;
+  return s;
+}
+
+function loginHTML(){
+  return `<div class="card-panel">
+    <div class="field"><label>管理者ID</label><input type="text" id="l-id" maxlength="20" placeholder="ゲームのアカウントID" autocapitalize="off"></div>
+    <div class="field"><label>パスワード</label><input type="password" id="l-pw" maxlength="20" placeholder="パスワード"></div>
+    ${adminError?`<div class="msg err">${esc(adminError)}</div>`:''}
+    <button class="btn btn-primary" data-action="do-login" ${authBusy?'disabled':''}>${authBusy?'ログイン中...':'ログイン'}</button>
+    <button class="btn btn-ghost" data-action="cancel-login" style="margin-top:9px;">やめる</button>
+  </div>`;
+}
+
+/* ── イベント ── */
+function bindDynamic(){
+  // 入力欄の値を保持(再描画時に消えないよう、inputイベントでformに反映)
+  const bind=(id,key,num)=>{const el=document.getElementById(id);if(el)el.addEventListener('input',()=>{form[key]=num?el.value:el.value;});};
+  bind('f-name','name'); bind('f-cost','cost'); bind('f-power','power');
+  bind('f-effect','effectText'); bind('f-note','note'); bind('f-by','by');
+  // 名前入力時はプレビュー更新のため軽く再描画(フォーカス維持のため名前のみ)
+  const nameEl=document.getElementById('f-name');
+  if(nameEl) nameEl.addEventListener('blur',()=>render());
+}
+
+document.getElementById('app').addEventListener('click', async (e)=>{
+  const el = e.target.closest('[data-action]');
+  if(!el) return;
+  const action = el.dataset.action, val = el.dataset.val, id = el.dataset.id;
+  // クリック前に入力中の値を確定
+  captureInputs();
+
+  switch(action){
+    case 'set-type': form.type=val; if(val==='spell')form.abilities=[]; render(); break;
+    case 'set-civ': form.civ=val; render(); break;
+    case 'toggle-ab': {
+      const i=form.abilities.indexOf(val);
+      if(i>=0)form.abilities.splice(i,1); else form.abilities.push(val);
+      render(); break;
+    }
+    case 'submit': await doSubmit(); break;
+    case 'tab-submit': mode='submit'; flash=null; render(); break;
+    case 'tab-admin': mode='admin'; render(); loadAdmin(); break;
+    case 'show-login': e.preventDefault(); showLogin(); break;
+    case 'cancel-login': backToSubmit(); break;
+    case 'do-login': await doLogin(); break;
+    case 'logout': e.preventDefault(); await window.RB.logout(); account=null; mode='submit'; adminRows=null; render(); break;
+    case 'del-req': await delReq(id); break;
+    case 'copy-tmpl': copyTmpl(id); break;
+  }
+});
+
+function captureInputs(){
+  const g=(id)=>document.getElementById(id)?document.getElementById(id).value:undefined;
+  const map={'f-name':'name','f-cost':'cost','f-power':'power','f-effect':'effectText','f-note':'note','f-by':'by'};
+  for(const [id,key] of Object.entries(map)){ const v=g(id); if(v!==undefined) form[key]=v; }
+}
+
+async function doSubmit(){
+  captureInputs();
+  // バリデーション
+  if(!form.name.trim()){ flash={type:'err',text:'カード名を入れてください。'}; render(); return; }
+  const cost=parseInt(form.cost,10);
+  if(!cost||cost<1||cost>15){ flash={type:'err',text:'コストは1〜15で入れてください。'}; render(); return; }
+  if(form.type==='creature'){
+    const pw=parseInt(form.power,10);
+    if(isNaN(pw)||pw<0){ flash={type:'err',text:'パワーを入れてください(0以上)。'}; render(); return; }
+  }
+  if(form.type==='spell' && !form.effectText.trim()){ flash={type:'err',text:'呪文の効果を書いてください。'}; render(); return; }
+
+  authBusy=true; render();
+  try{
+    await window.RB.submit({
+      type: form.type,
+      civ: form.civ,
+      name: form.name.trim().slice(0,24),
+      cost: cost,
+      power: form.type==='creature' ? (parseInt(form.power,10)||0) : null,
+      abilities: form.type==='creature' ? form.abilities.slice() : [],
+      effectText: form.effectText.trim().slice(0,300),
+      note: form.note.trim().slice(0,300),
+      by: form.by.trim().slice(0,20) || '名無し',
+    });
+    form=freshForm();
+    authBusy=false;
+    flash={type:'ok',text:'✅ 提案を送りました!ありがとう!'};
+    render();
+  }catch(err){
+    authBusy=false;
+    flash={type:'err',text:'送信に失敗しました。通信環境を確認して、もう一度お試しください。'};
+    render();
+  }
+}
+
+function showLogin(){
+  const app=document.getElementById('app');
+  app.innerHTML = `<div class="logo"><div class="t">FIVE CREST</div><div class="s">管理者ログイン</div></div>`+loginHTML();
+}
+function backToSubmit(){ adminError=''; render(); }
+
+async function doLogin(){
+  const id=document.getElementById('l-id')?.value.trim();
+  const pw=document.getElementById('l-pw')?.value||'';
+  if(!id||!pw){ adminError='IDとパスワードを入れてください。'; showLogin(); return; }
+  authBusy=true; adminError=''; showLogin();
+  try{
+    await window.RB.loginOwner(id, pw);
+    // OWNER_IDと一致するか確認
+    if(id.toLowerCase()!==String(window.OWNER_ID).toLowerCase()){
+      await window.RB.logout();
+      authBusy=false; adminError='このアカウントには閲覧権限がありません。'; showLogin(); return;
+    }
+    account=id; authBusy=false; mode='admin'; render(); loadAdmin();
+  }catch(err){
+    authBusy=false; adminError='ログインに失敗しました。IDかパスワードが違います。'; showLogin();
+  }
+}
+
+async function loadAdmin(){
+  adminRows=null; adminError=''; render();
+  try{
+    adminRows = await window.RB.getAll();
+    render();
+  }catch(err){
+    adminError='提案の読み込みに失敗しました。閲覧権限(Firestoreルール)を確認してください。';
+    render();
+  }
+}
+
+async function delReq(id){
+  if(!confirm('この提案を削除しますか?')) return;
+  try{ await window.RB.remove(id); adminRows=adminRows.filter(r=>r._id!==id); render(); }
+  catch(err){ alert('削除に失敗しました。'); }
+}
+
+function copyTmpl(id){
+  const r=adminRows.find(x=>x._id===id); if(!r)return;
+  const tmpl=buildTemplate(r);
+  navigator.clipboard?.writeText(tmpl).then(()=>{
+    const btn=document.querySelector(`[data-action="copy-tmpl"][data-id="${id}"]`);
+    if(btn){const o=btn.textContent;btn.textContent='コピーしました!';setTimeout(()=>btn.textContent=o,1200);}
+  }).catch(()=>alert('コピーできませんでした。'));
+}
+
+/* ── 起動 ── */
+window.onAuthReady = function(user){
+  // 既にログイン済みでOWNER_IDなら管理者として復帰
+  // (ページ再読み込み時)
+  if(user && !account){
+    // メールからIDを逆算できないので、OWNER_IDが唯一の管理者という前提で復帰
+    account = window.OWNER_ID;
+  } else if(!user){
+    account = null;
+  }
+  render();
+};
+
+// 初期描画(認証状態が来る前でも投稿フォームは出す)
+render();
+</script>
+</body>
+</html>
