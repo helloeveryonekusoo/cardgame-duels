@@ -325,12 +325,11 @@ img, svg { display:block; }
 .pool-wrap.at-max{opacity:.6;}
 .pool-badge{position:absolute;top:4px;right:4px;min-width:17px;height:17px;border-radius:9px;background:rgba(0,0,0,.8);color:#fff;font-size:9px;font-weight:700;display:flex;align-items:center;justify-content:center;padding:0 3px;}
 .pool-badge.maxed{background:var(--civ-dark);}
-/* プールのカード上で直接枚数を増減するボタン */
+/* プールのカード上で枚数を減らすボタン(追加はカード自体のクリック) */
 .pool-ctrls{position:absolute;bottom:4px;left:50%;transform:translateX(-50%);display:flex;gap:4px;z-index:3;opacity:0;transition:opacity .12s;pointer-events:none;}
 .pool-wrap:hover .pool-ctrls,.pool-wrap.has-cnt .pool-ctrls{opacity:1;pointer-events:auto;}
-.pool-ctrl-btn{width:22px;height:22px;border-radius:11px;border:none;background:rgba(0,0,0,.82);color:#fff;font-size:15px;font-weight:700;line-height:1;display:flex;align-items:center;justify-content:center;cursor:pointer;box-shadow:0 1px 4px rgba(0,0,0,.5);}
+.pool-ctrl-btn{width:32px;height:32px;border-radius:16px;border:none;background:rgba(0,0,0,.82);color:#fff;font-size:20px;font-weight:700;line-height:1;display:flex;align-items:center;justify-content:center;cursor:pointer;box-shadow:0 1px 4px rgba(0,0,0,.5);}
 .pool-ctrl-btn:active{transform:scale(.9);}
-.pool-ctrl-btn.add{background:var(--civ-water);}
 .pool-ctrl-btn.rem{background:var(--civ-fire);}
 .pool-ctrl-btn:disabled{opacity:.35;cursor:default;}
 /* 持ち時間の時計 */
@@ -345,7 +344,7 @@ img, svg { display:block; }
 .deck-row-name{flex:1;font-size:10px;color:var(--text-muted);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
 .deck-row-cost{font-size:10px;font-family:var(--font-display);color:#fff;width:14px;text-align:center;}
 .deck-row-cnt{font-size:11px;font-weight:700;color:var(--text-primary);min-width:18px;text-align:center;}
-.ctrl-btn{width:17px;height:17px;border-radius:50%;border:1px solid rgba(255,255,255,.2);background:transparent;color:var(--text-muted);cursor:pointer;font-size:11px;display:flex;align-items:center;justify-content:center;padding:0;line-height:1;flex-shrink:0;}
+.ctrl-btn{width:26px;height:26px;border-radius:50%;border:1px solid rgba(255,255,255,.2);background:transparent;color:var(--text-muted);cursor:pointer;font-size:16px;display:flex;align-items:center;justify-content:center;padding:0;line-height:1;flex-shrink:0;}
 .ctrl-btn:hover{color:#fff;background:rgba(255,255,255,.12);}
 .ctrl-btn:disabled{opacity:.3;cursor:default;}
 .ctrl-btn.rem:hover{color:var(--civ-fire);border-color:var(--civ-fire);}
@@ -424,6 +423,8 @@ img, svg { display:block; }
 .card[data-multi="dark-nature"] .card-art  { background: linear-gradient(160deg, var(--civ-dark-dark), var(--civ-nature-dark)) !important; }
 .card[data-multi="fire-light"] .card-head  { background: linear-gradient(120deg, var(--civ-fire) 0%, var(--civ-fire-dark) 40%, var(--civ-light-dark) 60%, var(--civ-light) 100%) !important; }
 .card[data-multi="fire-light"] .card-art   { background: linear-gradient(160deg, var(--civ-fire-dark), var(--civ-light-dark)) !important; }
+.card[data-multi="fire-nature-water"] .card-head { background: linear-gradient(120deg, var(--civ-fire) 0%, var(--civ-fire-dark) 30%, var(--civ-nature-dark) 50%, var(--civ-nature-dark) 60%, var(--civ-water-dark) 80%, var(--civ-water) 100%) !important; }
+.card[data-multi="fire-nature-water"] .card-art  { background: linear-gradient(160deg, var(--civ-fire-dark), var(--civ-nature-dark), var(--civ-water-dark)) !important; }
 </style>
 <script src="https://unpkg.com/peerjs@1.5.4/dist/peerjs.min.js"></script>
 <script type="module">
@@ -740,6 +741,7 @@ const ABILITY_INFO = {
   tideBreak:     { label: '潮撃',        kanji: '潮',  desc: `デッキに水文明のカードが${RULES.TIDE_WATER_REQ}枚以上入っているなら、シールドを${RULES.TIDE_BREAK_COUNT}枚ブレイクする。`, note: true },
   graveSummon:   { label: '墓地召喚',    kanji: '墓',  desc: '墓地からもコストを1下げて召喚できる。', note: true },
   slowField:     { label: '時滞',        kanji: '滞',  desc: 'このクリーチャーがバトルゾーンにある間、相手のクリーチャーは出たターンに攻撃できない。', note: true },
+  rush:          { label: '突撃',        kanji: '突',  desc: 'このクリーチャーは出たターンでも、相手のクリーチャーを攻撃できる(プレイヤーは攻撃できない)。', note: true },
 };
 
 function effectText(effect, isEtb) {
@@ -798,7 +800,7 @@ const RAW_CARDS = [
   {id:'f12', civ:'fire', type:'creature', name:'灼炎の悪鬼', cost:5, power:5000, abilities:["speed","deathtouch"]},
   {id:'f13', civ:'fire', type:'creature', name:'業火の魔王ベルゼ', cost:7, power:10000, abilities:["speed","powerBreak"]},
   {id:'f14', civ:'fire', type:'spell', name:'爆炎の弾丸', cost:1, abilities:["shieldTrigger"], effect:{"type":"destroyPowerLE","value":1000}},
-  {id:'f15', civ:'fire', type:'spell', name:'大噴火', cost:5, abilities:[], effect:{"type":"massDestroyLE","value":4000}},
+  {id:'f15', civ:'fire', type:'spell', name:'大噴火', cost:5, abilities:["shieldTrigger"], effect:{"type":"massDestroyLE","value":4000}},
   {id:'w1', civ:'water', type:'creature', name:'泡沫のミルル', cost:1, power:2000, abilities:["shieldTrigger"]},
   {id:'w2', civ:'water', type:'creature', name:'潮流の精霊ウンディ', cost:2, power:3000, abilities:[], etb:{"type":"draw","value":1}},
   {id:'w3', civ:'water', type:'creature', name:'深海の見張りゴーレム', cost:3, power:4000, abilities:["guard"]},
@@ -871,6 +873,7 @@ const RAW_CARDS = [
   {id:'n16', civ:'nature', type:'creature', name:'豊穣の神恩ワルツ', cost:3, power:2000, abilities:[], etb:{"type":"peekAllocate"}},
   {id:'n17', civ:'nature', type:'creature', name:'収穫の樹人ポモナ', cost:4, power:4000, abilities:["guard"], etb:{"type":"sequence","steps":[{"type":"multiRamp","count":2},{"type":"manaToHand"}]}},
   {id:'d16', civ:'dark', type:'creature', name:'盾喰らいの大悪魔グラトニス', cost:7, power:9000, abilities:["speed","powerBreak"], etb:{"type":"reduceShieldsTo","value":3}},
+  {id:'m5', civ:'multi', civs:['fire','nature','water'], type:'creature', name:'焔嵐の荒獣ヴォルガナ', cost:4, power:6000, abilities:["shieldTrigger","multiBreak","guard","rush"]},
 ];
 /* ═══════════════════════════════════════════════════════════════
    カードまわりのロジック(カードのデータ本体は cards-data.js)
@@ -965,8 +968,8 @@ class AiPlayer {
         if (ab.includes('powerBreak')) score += sign * 12;
         if (ab.includes('tideBreak'))  score += sign * 8;
         if (ab.includes('deathtouch')) score += sign * 8;
-        // 攻撃できる状態(アンタップ・酔ってない・凍ってない)のアタッカーは価値が高い
-        const canAttack = !c.tapped && !c.sick && c.frozenBy===undefined && !(c.justEntered && enemyHasSlow);
+        // 攻撃できる状態(アンタップ・酔ってない・凍ってない)のアタッカーは価値が高い(突撃は酔い中でも可)
+        const canAttack = !c.tapped && (!c.sick || ab.includes('rush')) && c.frozenBy===undefined && !(c.justEntered && enemyHasSlow);
         if (canAttack) score += sign * 9;
         if (c.frozenBy!==undefined) score -= sign * 14;
       }
@@ -1041,9 +1044,11 @@ class AiPlayer {
     const opp = other(meIdx);
     const oppHasSlow = state.players[opp].battle.some(c=>getCardDef(c.defId).abilities.includes('slowField'));
     for (const c of p.battle){
-      if (c.tapped || c.sick || c.frozenBy!==undefined) continue;
+      if (c.tapped || c.frozenBy!==undefined) continue;
       if (c.justEntered && oppHasSlow) continue;
-      acts.push({ kind:'atkPlayer', uid:c.uid });
+      // 突撃持ちは召喚酔い中でもクリーチャー攻撃だけ可能
+      if (c.sick && !(getCardDef(c.defId).abilities||[]).includes('rush')) continue;
+      if (!c.sick) acts.push({ kind:'atkPlayer', uid:c.uid });
       for (const t of state.players[opp].battle){
         if (t.tapped) acts.push({ kind:'atkCreature', uid:c.uid, target:t.uid });
       }
@@ -1309,12 +1314,12 @@ class AiPlayer {
       if (s.pending){ AI.autoResolve(s, meIdx); continue; }
       const opp = other(meIdx);
       const oppHasSlow = s.players[opp].battle.some(c=>getCardDef(c.defId).abilities.includes('slowField'));
-      const attackers = s.players[meIdx].battle.filter(c=>!c.tapped&&!c.sick&&c.frozenBy===undefined&&!(c.justEntered&&oppHasSlow));
+      const attackers = s.players[meIdx].battle.filter(c=>!c.tapped&&(!c.sick||(getCardDef(c.defId).abilities||[]).includes('rush'))&&c.frozenBy===undefined&&!(c.justEntered&&oppHasSlow));
       if (attackers.length === 0) break;
-      // 候補: 各アタッカーで本体攻撃 or タップ済み敵の除去
+      // 候補: 各アタッカーで本体攻撃 or タップ済み敵の除去(酔い中の突撃持ちはクリーチャー攻撃のみ)
       const cands = [];
       for (const a of attackers){
-        cands.push({ kind:'atkPlayer', uid:a.uid });
+        if (!a.sick) cands.push({ kind:'atkPlayer', uid:a.uid });
         for (const t of s.players[opp].battle){ if (t.tapped) cands.push({ kind:'atkCreature', uid:a.uid, target:t.uid }); }
       }
       if (cands.length === 0) break;
@@ -2041,7 +2046,7 @@ class GameEngine {
 
   eligibleAttackers(state) {
   const p = state.players[state.active];
-  return p.battle.filter(c => !c.tapped && !c.sick);
+  return p.battle.filter(c => !c.tapped && (!c.sick || getCardDef(c.defId).abilities.includes('rush')));
 }
 
   declareAttack(state, attackerUid, targetType, targetUid) {
@@ -2049,7 +2054,10 @@ class GameEngine {
   const p = state.players[state.active];
   const opp = state.players[other(state.active)];
   const attacker = p.battle.find(c => c.uid === attackerUid);
-  if (!attacker || attacker.tapped || attacker.sick) return { ok: false, reason: 'invalid-attacker' };
+  if (!attacker || attacker.tapped) return { ok: false, reason: 'invalid-attacker' };
+  // 突撃: 召喚酔い中でも相手クリーチャーへの攻撃だけは許可(プレイヤー攻撃は不可)
+  if (attacker.sick && !(targetType === 'creature' && getCardDef(attacker.defId).abilities.includes('rush')))
+    return { ok: false, reason: 'invalid-attacker' };
   if (attacker.frozenBy !== undefined) return { ok: false, reason: 'frozen' };
   if (attacker.justEntered && opp.battle.some(c => getCardDef(c.defId).abilities.includes('slowField')))
     return { ok: false, reason: 'slow-field' };
@@ -3124,8 +3132,8 @@ function deckBuilderScreenHTML(){
     return a.name.localeCompare(b.name,'ja');
   });
   const poolHTML=filtered.map(c=>{
-    const cnt=deckCount(c.id),atMax=cnt>=4,deckFull=deckInProgress.length>=40;
-    return `<div class="pool-wrap${atMax?' at-max':''}${cnt>0?' has-cnt':''}" data-action="pool-add" data-id="${c.id}" data-name="${esc(c.name)}">${cardHTML(c.id,{})}${cnt>0?`<div class="pool-badge${atMax?' maxed':''}">×${cnt}</div>`:''}<div class="pool-ctrls"><button class="pool-ctrl-btn rem" data-action="pool-rem" data-id="${c.id}" ${cnt<=0?'disabled':''}>−</button><button class="pool-ctrl-btn add" data-action="pool-add" data-id="${c.id}" ${(atMax||deckFull)?'disabled':''}>＋</button></div></div>`;
+    const cnt=deckCount(c.id),atMax=cnt>=4;
+    return `<div class="pool-wrap${atMax?' at-max':''}${cnt>0?' has-cnt':''}" data-action="pool-add" data-id="${c.id}" data-name="${esc(c.name)}">${cardHTML(c.id,{})}${cnt>0?`<div class="pool-badge${atMax?' maxed':''}">×${cnt}</div>`:''}<div class="pool-ctrls"><button class="pool-ctrl-btn rem" data-action="pool-rem" data-id="${c.id}" ${cnt<=0?'disabled':''}>−</button></div></div>`;
   }).join('');
   let deckHTML='';
   if(!deckInProgress.length){deckHTML='<div style="padding:14px 12px;color:var(--text-faint);font-size:11px;">カードを追加してください</div>';}
@@ -3136,7 +3144,7 @@ function deckBuilderScreenHTML(){
       const def=getCardDef(id);
       if(def.civ!==lc){const cv=CIVS[def.civ];const ct=entries.filter(e=>getCardDef(e[0]).civ===def.civ).reduce((s,e)=>s+e[1],0);deckHTML+=`<div class="deck-civ-hdr" style="--hc:${cv.color}">${cv.name} (${ct})</div>`;lc=def.civ;}
       const cv=CIVS[def.civ];
-      deckHTML+=`<div class="deck-row"><span class="deck-row-dot" style="--dc:${cv.color}"></span><span class="deck-row-name" title="${esc(def.name)}">${esc(def.name)}</span><span class="deck-row-cost" style="--cc:${cv.color}">${def.cost}</span><button class="ctrl-btn rem" data-action="deck-rem" data-id="${id}">−</button><span class="deck-row-cnt">×${cnt}</span><button class="ctrl-btn" data-action="deck-add" data-id="${id}" ${cnt>=4?'disabled':''}>+</button></div>`;
+      deckHTML+=`<div class="deck-row"><span class="deck-row-dot" style="--dc:${cv.color}"></span><span class="deck-row-name" title="${esc(def.name)}">${esc(def.name)}</span><span class="deck-row-cost" style="--cc:${cv.color}">${def.cost}</span><button class="ctrl-btn rem" data-action="deck-rem" data-id="${id}">−</button><span class="deck-row-cnt">×${cnt}</span></div>`;
     }
   }
   const civFilters=['all',...civOrder].map(k=>{const label=k==='all'?'すべて':CIVS[k].name;const color=k!=='all'?CIVS[k].color:'#777';const active=deckFilter===k;return `<button class="flt-btn${active?' active':''}" data-action="db-filter" data-civ="${k}" style="${active?`--fc:${color}`:''}">${label}</button>`;}).join('');
@@ -3201,6 +3209,7 @@ function battleZoneHTML(idx){
   const p=getPlayer(idx),isMyZone=idx===ui.myIdx,canAct=isMyDecision(),tgt=!!ui.selectedAttackerUid;
   const oppP=getPlayer(other(idx));
   const oppHasSlow=oppP.battle.some(c=>getCardDef(c.defId).abilities.includes('slowField'));
+  const oppHasTapped=oppP.battle.some(c=>c.tapped);
   const stadiumsHTML=(p.stadiums&&p.stadiums.length)?`<div class="stadium-row">${p.stadiums.map(s=>{
     const sd=getCardDef(s.defId);
     return `<div class="stadium-tile" data-action="view-stadium" data-uid="${esc(s.uid)}" data-owner="${idx}"><span class="stadium-name">${esc(sd.name)}</span><span class="stadium-cnt${s.under.length>=4?' ready':''}">${s.under.length}/4</span></div>`;
@@ -3212,12 +3221,15 @@ function battleZoneHTML(idx){
     const opts={tapped:c.tapped,sick:c.sick,buff:c.buff,frozen:c.frozenBy!==undefined};
     if(aa){ if(c.uid===aa.attackerUid){opts.attacking=true;opts.resolving=aaResolving;} else if(aa.targetType==='creature'&&c.uid===aa.targetUid){opts.beingHit=true;opts.resolving=aaResolving;} }
     const cantAtk=c.frozenBy!==undefined||(c.justEntered&&oppHasSlow);
+    const hasRush=getCardDef(c.defId).abilities.includes('rush');
+    if(c.sick&&hasRush&&!cantAtk)opts.sick=false; // 突撃: 出たターンでも攻撃できるので「準備中」表示にしない
+    const atkSel=!c.tapped&&!cantAtk&&(!c.sick||(hasRush&&oppHasTapped));
     if(tgt&&canAct&&!isMyZone){
       if(c.tapped){opts.selectable=true;opts.validTarget=true;opts.action='attack-creature';opts.uid=c.uid;}
       else{opts.selectable=true;opts.action='view-card';opts.uid=c.uid;}
     }
-    else if(tgt&&canAct&&isMyZone){if(c.uid===ui.selectedAttackerUid){opts.selectable=true;opts.selected=true;opts.action='cancel-attack';}else if(!c.tapped&&!c.sick&&!cantAtk){opts.selectable=true;opts.action='select-attacker';opts.uid=c.uid;}else{opts.selectable=true;opts.action='view-card';opts.uid=c.uid;}}
-    else if(!tgt&&canAct&&isMyZone&&!c.tapped&&!c.sick&&!cantAtk){opts.selectable=true;opts.action='select-attacker';opts.uid=c.uid;}
+    else if(tgt&&canAct&&isMyZone){if(c.uid===ui.selectedAttackerUid){opts.selectable=true;opts.selected=true;opts.action='cancel-attack';}else if(atkSel){opts.selectable=true;opts.action='select-attacker';opts.uid=c.uid;}else{opts.selectable=true;opts.action='view-card';opts.uid=c.uid;}}
+    else if(!tgt&&canAct&&isMyZone&&atkSel){opts.selectable=true;opts.action='select-attacker';opts.uid=c.uid;}
     else{opts.selectable=true;opts.action='view-card';opts.uid=c.uid;}
     return cardHTML(c.defId,opts);
   }).join('')}</div>`;
@@ -3309,7 +3321,7 @@ function detectShieldBreak(){
   }
   ui.prevShields=cur;
 }
-function opponentRowHTML(){const oi=other(ui.myIdx),p=getPlayer(oi),tgt=!!ui.selectedAttackerUid&&isMyDecision();const beingHitDirect=ui.attackAnim&&ui.attackAnim.direct&&ui.attackAnim.targetType==='player'&&game.lastAttack&&game.lastAttack.defenderIdx===oi;return `<div class="player-row opponent">${playerHeaderHTML(oi,game.active===oi)}${tgt?`<div class="target-face valid-target" data-action="attack-player">${esc(p.name)} を直接攻撃 ⟶</div>`:''}${manaRowHTML(p)}${battleZoneHTML(oi)}${handRowHTML(oi)}</div>`;}
+function opponentRowHTML(){const oi=other(ui.myIdx),p=getPlayer(oi),tgt=!!ui.selectedAttackerUid&&isMyDecision();const selAtk=tgt?getPlayer(ui.myIdx).battle.find(c=>c.uid===ui.selectedAttackerUid):null;const canDirect=!!selAtk&&!selAtk.sick;const beingHitDirect=ui.attackAnim&&ui.attackAnim.direct&&ui.attackAnim.targetType==='player'&&game.lastAttack&&game.lastAttack.defenderIdx===oi;return `<div class="player-row opponent">${playerHeaderHTML(oi,game.active===oi)}${tgt&&canDirect?`<div class="target-face valid-target" data-action="attack-player">${esc(p.name)} を直接攻撃 ⟶</div>`:''}${manaRowHTML(p)}${battleZoneHTML(oi)}${handRowHTML(oi)}</div>`;}
 function myRowHTML(){const p=getPlayer(ui.myIdx);return `<div class="player-row mine">${battleZoneHTML(ui.myIdx)}${manaRowHTML(p)}${handRowHTML(ui.myIdx)}${playerHeaderHTML(ui.myIdx,game.active===ui.myIdx)}</div>`;}
 function centerStripHTML(){
   const p=getPlayer(game.active),myTurn=isMyDecision(),tgt=!!ui.selectedAttackerUid,canEnd=myTurn&&!tgt&&!game.pending;
@@ -3961,7 +3973,6 @@ document.getElementById('app').addEventListener('click',e=>{
     case 'db-view':    ui.deckView=el.dataset.view; render(); break;
     case 'pool-add':   deckAdd(el.dataset.id); render(); break;
     case 'pool-rem':   deckRemove(el.dataset.id); render(); break;
-    case 'deck-add':   deckAdd(el.dataset.id); render(); break;
     case 'deck-rem':   deckRemove(el.dataset.id); render(); break;
     case 'db-save': {
       const n=(document.getElementById('deckNameInp')?.value?.trim()||'マイデッキ').slice(0,15);
