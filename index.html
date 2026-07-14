@@ -775,6 +775,10 @@ function effectText(effect, isEtb) {
     case 'peekAllocate': return `${p}自分の山札の上から3枚を見て、1枚をマナゾーンに、1枚を手札に、残りを墓地に置く。`;
     case 'manaToHand':   return `${p}自分のマナゾーンからカードを1枚選び、手札に戻す。`;
     case 'reduceShieldsTo': return `${p}相手のシールドが残り${effect.value}枚になるように墓地に置く。`;
+    case 'sendToLost': {
+      const c = effect.value > 0 ? `相手のマナの数が自分より多いなら、この呪文のコストを${effect.value}下げる。` : '';
+      return `${c}${p}相手のクリーチャー1体を選び、ロストゾーンに送る(墓地に置かれず、ゲームから除外される)。`;
+    }
     case 'sequence':      return `${p}` + effect.steps.map(s => effectText(s, false)).join('');
     default: return '';
   }
@@ -874,6 +878,8 @@ const RAW_CARDS = [
   {id:'n17', civ:'nature', type:'creature', name:'収穫の樹人ポモナ', cost:4, power:4000, abilities:["guard"], etb:{"type":"sequence","steps":[{"type":"multiRamp","count":2},{"type":"manaToHand"}]}},
   {id:'d16', civ:'dark', type:'creature', name:'盾喰らいの大悪魔グラトニス', cost:7, power:9000, abilities:["speed","powerBreak"], etb:{"type":"reduceShieldsTo","value":3}},
   {id:'m5', civ:'multi', civs:['fire','nature','water'], type:'creature', name:'焔嵐の荒獣ヴォルガナ', cost:4, power:6000, abilities:["shieldTrigger","multiBreak","guard","rush"]},
+  {id:'m6', civ:'multi', civs:['fire','water'], type:'creature', name:'熱湯の襲撃者ボイル', cost:3, power:5000, abilities:["speed","tideBreak"]},
+  {id:'w22', civ:'water', type:'spell', name:'忘却の海淵', cost:5, abilities:["shieldTrigger"], effect:{"type":"sendToLost","value":2}},
 ];
 /* ═══════════════════════════════════════════════════════════════
    カードまわりのロジック(カードのデータ本体は cards-data.js)
@@ -1107,7 +1113,7 @@ class AiPlayer {
         const pickStrongest = (uids, owner) => {
           let b=null,bp=-1; for(const u of uids){const c=owner.find(x=>x.uid===u);if(!c)continue;const p=Engine.effectivePower(c);if(p>bp){bp=p;b=u;}} return b||uids[0];
         };
-        if (['destroy','destroyAny','tap','bounce','freeze'].includes(kind)){
+        if (['destroy','destroyAny','tap','bounce','freeze','toLost'].includes(kind)){
           chosen = pickStrongest(pend.options, state.players[other(ctrl)].battle);
         } else if (kind === 'buff'){
           chosen = pickStrongest(pend.options, state.players[ctrl].battle);
@@ -1459,7 +1465,12 @@ class GameEngine {
   effectiveCost(state, playerIdx, def) {
   if (def.type !== 'spell') return def.cost;
   const boost = state.players[playerIdx].battle.filter(c => getCardDef(c.defId).abilities.includes('spellBoost')).length;
-  return Math.max(RULES.SPELL_MIN_COST, def.cost - boost);
+  let cost = def.cost - boost;
+  // sendToLost: 相手のマナの数が自分より多いならコストをvalue下げる
+  const e = def.effect;
+  if (e && e.type === 'sendToLost' && (e.value || 0) > 0 &&
+      state.players[other(playerIdx)].mana.length > state.players[playerIdx].mana.length) cost -= e.value;
+  return Math.max(RULES.SPELL_MIN_COST, cost);
 }
   
   canPay(p, def, costOverride) {
@@ -1796,6 +1807,13 @@ class GameEngine {
       this.log(state, `${opp.name} のシールド${removed}枚が墓地に置かれた! (残り${keep}枚)`);
       return;
     }
+    case 'sendToLost': {
+      const targets = opp.battle.slice();
+      if (targets.length === 0) { this.log(state, `(対象がなく何も起きなかった)`); return; }
+      if (targets.length === 1) this.resolveToLost(state, controllerIdx, targets[0].uid);
+      else state.pending = { type: 'chooseTarget', kind: 'toLost', controllerIdx, options: targets.map(c => c.uid) };
+      return;
+    }
     case 'placeLimit': {
       state.placeLimit = { lockedIdx: other(controllerIdx), remaining: RULES.PLACE_LIMIT_COUNT };
       this.log(state, `${opp.name} は次の自分のターンの終わりまで、クリーチャーを1体しか出せない！`);
@@ -1865,6 +1883,15 @@ class GameEngine {
   opp.graveyard.push(card);
   this.log(state, `「${getCardDef(card.defId).name}」が破壊された。`);
 }
+  resolveToLost(state, controllerIdx, uid) {
+  const opp = state.players[other(controllerIdx)];
+  const card = this.removeFromZone(opp.battle, uid);
+  if (!card) return;
+  // ロストゾーン(墓地と違い、regrow等の回収が一切届かないゲーム外の領域)。
+  // 既存の対戦状態にはlostが無いため、初回使用時に生やす(baseline互換のためcreatePlayerには足さない)
+  (opp.lost = opp.lost || []).push({ uid: card.uid, defId: card.defId });
+  this.log(state, `「${getCardDef(card.defId).name}」はロストゾーンに送られた!(ゲームから除外)`);
+}
   resolveTap(state, controllerIdx, uid) {
   const opp = state.players[other(controllerIdx)];
   const c = this.findInZone(opp.battle, uid);
@@ -1927,6 +1954,7 @@ class GameEngine {
   else if (kind === 'tap') this.resolveTap(state, controllerIdx, chosenUid);
   else if (kind === 'buff')       this.resolveBuff(state, controllerIdx, chosenUid, value);
   else if (kind === 'destroyAny') this.resolveDestroy(state, controllerIdx, chosenUid);
+  else if (kind === 'toLost')     this.resolveToLost(state, controllerIdx, chosenUid);
   else if (kind === 'freeSpell') {
     const p = state.players[controllerIdx];
     const card = this.removeFromHand(p, chosenUid);
@@ -2473,18 +2501,29 @@ function applyAction(msg){
   else if(k==='endTurn')       Engine.endTurn(game);
 }
 
-/* ── PeerJS 接続設定(STUN/TURN) ── */
+/* ── PeerJS 接続設定(STUN/TURN) ──
+   TURNは Metered(アカウント: kusoocard、無料枠 月0.5GB)を利用。
+   起動時にAPIから最新の接続情報を取得して差し替える。取得に失敗しても
+   下のSTUNのみで続行する(直接P2Pが張れる環境なら今まで通り繋がる)。
+   使用量・資格情報の管理: https://dashboard.metered.ca (TURN Serverページ) */
 const PEER_CONFIG = {
   debug: 1,
   config: { iceServers: [
     { urls: 'stun:stun.l.google.com:19302' },
-    { urls: 'stun:stun1.l.google.com:19302' },
     { urls: 'stun:stun.cloudflare.com:3478' },
-    { urls: 'turn:openrelay.metered.ca:80',  username: 'openrelayproject', credential: 'openrelayproject' },
-    { urls: 'turn:openrelay.metered.ca:443', username: 'openrelayproject', credential: 'openrelayproject' },
-    { urls: 'turn:openrelay.metered.ca:443?transport=tcp', username: 'openrelayproject', credential: 'openrelayproject' },
   ] }
 };
+(async()=>{
+  try{
+    const r=await fetch('https://kusoocard.metered.live/api/v1/turn/credentials?apiKey=94a9127da7cbb03ee42ba3ff364c8e690ad0');
+    if(r.ok){
+      const ice=await r.json();
+      if(Array.isArray(ice)&&ice.length){
+        PEER_CONFIG.config.iceServers=[{urls:'stun:stun.l.google.com:19302'},...ice];
+      }
+    }
+  }catch(e){ console.warn('TURN credentials fetch failed (STUN only)',e); }
+})();
 
 /* ═══════════════════════════════════════════════════════════════
    NetworkSession — PeerJS の接続・ハートビート・再接続・観戦配信を
@@ -2513,7 +2552,9 @@ class NetworkSession {
   // ホストが全状態をゲスト・観戦者へ配信する(ホスト権威型同期の心臓部)
   broadcastState(){
     if(ui.role!=='host'||!game) return;
-    const msg={type:'STATE',game:JSON.stringify(game),spectators:this.spectators.length};
+    // ログは直近150件だけ配る(後半に送信サイズが肥大して弱い回線が詰まるのを防ぐ)
+    const g = game.log.length>150 ? {...game, log: game.log.slice(-150)} : game;
+    const msg={type:'STATE',game:JSON.stringify(g),spectators:this.spectators.length};
     if(rankedMatch&&Clock.clocks){ msg.clocks=Clock.clocks; msg.interrupt=Clock.interruptDeadline; }
     if(this.conn&&this.conn.open) this.conn.send(msg);
     this.spectators.forEach(s=>{ try{ if(s.open) s.send(msg); }catch(e){} });
@@ -2528,6 +2569,10 @@ class NetworkSession {
     this.stopHeartbeat();
     if(this.graceTimer){clearTimeout(this.graceTimer);this.graceTimer=null;}
     this.connReviving=false;
+    // 前セッションの観戦者・エラーを持ち越さない(部屋を作り直したとき幽霊観戦者が出る)
+    this.spectators.forEach(s=>{ try{ s.close(); }catch(e){} });
+    this.spectators=[];
+    this.lastPeerError='';
     if(wakeLock){ try{ wakeLock.release(); }catch(e){} wakeLock=null; }
     if(this.peer){try{this.peer.destroy();}catch(e){} this.peer=null; this.conn=null;}
   }
@@ -2539,6 +2584,9 @@ class NetworkSession {
       // Host pings guest; both answer pings with pongs. Keeps the data channel warm.
       try{ if(this.conn&&this.conn.open) this.conn.send({type:'PING',t:Date.now()}); }catch(e){}
       try{ this.spectators.forEach(s=>{ if(s.open) s.send({type:'PING'}); }); }catch(e){}
+      // 13秒以上応答がなければ「黙って死んだ接続」とみなし、closeイベントを
+      // 待たずに復帰を試みる(NATタイムアウト等ではcloseが飛んでこないことがある)
+      if(this.conn && this.conn.open && Date.now()-this.lastPongAt>13000){ this.onConnDrop(); }
     }, 4000);
   }
   stopHeartbeat(){ if(this.heartbeatTimer){clearInterval(this.heartbeatTimer);this.heartbeatTimer=null;} }
@@ -2546,7 +2594,14 @@ class NetworkSession {
   attachConn(c){
     this.conn=c;
     c.on('data',(d)=>this.handleData(d));
-    c.on('open',()=>{ this.connReviving=false; if(this.graceTimer){clearTimeout(this.graceTimer);this.graceTimer=null;} this.startHeartbeat(); if(ui.screen==='reconnecting'){ ui.screen=game?(game.winner!==null?'gameover':'play'):'deckBuilder'; render(); requestWakeLock(); } });
+    c.on('open',()=>{
+      this.connReviving=false;
+      if(this.graceTimer){clearTimeout(this.graceTimer);this.graceTimer=null;}
+      this.startHeartbeat();
+      // 対戦中に繋ぎ直した場合、ホストは最新状態を配り直してゲストを追い付かせる
+      if(ui.role==='host' && game && game.winner===null) this.broadcastState();
+      if(ui.screen==='reconnecting'){ ui.screen=game?(game.winner!==null?'gameover':'play'):'deckBuilder'; render(); requestWakeLock(); }
+    });
     c.on('close',()=>{ this.onConnDrop(); });
     c.on('error',e=>{ console.warn('conn err',e); this.onConnDrop(); });
   }
@@ -2582,6 +2637,8 @@ class NetworkSession {
     if(this.peer && this.peer.disconnected && !this.peer.destroyed){ try{ this.peer.reconnect(); }catch(e){} }
     if(ui.role==='guest' && this.peer && !this.peer.destroyed && this.roomTarget){
       try{
+        // 前回の失敗した接続試行を閉じてから張り直す(半開き接続を溜めない)
+        if(this.conn && !this.conn.open){ try{ this.conn.close(); }catch(e){} }
         const c=this.peer.connect(this.roomTarget,{reliable:true,serialization:'json'});
         this.attachConn(c);
       }catch(e){}
@@ -2706,13 +2763,19 @@ class NetworkSession {
         c.on('error',()=>{ this.spectators=this.spectators.filter(x=>x!==c); });
         return;
       }
-      // Reject extra player connections: this room already has an opponent
+      // Reject extra player connections: this room already has an opponent.
+      // ただし同じ相手からの接続は再接続なので拒否せず、古いリンクを張り替える。
       if(this.conn && this.conn.open){
-        c.on('open',()=>{ try{ c.send({type:'ROOM_FULL'}); }catch(e){} setTimeout(()=>{try{c.close();}catch(e){}},300); });
-        return;
+        if(c.peer!==this.conn.peer){
+          c.on('open',()=>{ try{ c.send({type:'ROOM_FULL'}); }catch(e){} setTimeout(()=>{try{c.close();}catch(e){}},300); });
+          return;
+        }
+        try{ this.conn.close(); }catch(e){}
       }
       this.attachConn(c);
       c.on('open',()=>{
+        // 対戦中の再接続ならゲームを維持する(attachConn側で最新状態を再同期済み)
+        if(game && game.winner===null) return;
         hostDeckIds=null; guestDeckIds=null;
         deckInProgress=[]; deckFilter='all'; deckSearch=''; ui.deckView='pool';
         ui.screen='deckBuilder'; render();
@@ -2730,6 +2793,8 @@ class NetworkSession {
       this.lastPeerError=err.type||String(err);
       ui.screen='connError'; render();
     });
+    // 仲介サーバーに繋がらないまま「作成中...」で固まるのを防ぐ
+    setTimeout(()=>{ if(ui.screen==='creatingRoom'){ this.lastPeerError=this.lastPeerError||'network'; ui.screen='connError'; render(); } },15000);
     document.addEventListener('visibilitychange',this._boundOnVisible);
   }
 
@@ -2921,9 +2986,13 @@ function setupRankedHostPeer(code){
   ui.role='host'; ui.myIdx=0;
   Net.peer = new Peer('five-crest-'+code.toLowerCase(), PEER_CONFIG);
   Net.peer.on('connection',c=>{
-    if(Net.conn && Net.conn.open){ c.on('open',()=>{try{c.send({type:'ROOM_FULL'});}catch(e){}}); return; }
+    if(Net.conn && Net.conn.open){
+      // 同じ相手からの再接続は張り替える(対戦続行)。別の相手なら満室。
+      if(c.peer!==Net.conn.peer){ c.on('open',()=>{try{c.send({type:'ROOM_FULL'});}catch(e){}}); return; }
+      try{ Net.conn.close(); }catch(e){}
+    }
     Net.attachConn(c);
-    c.on('open',()=>{ /* ゲストのRANKED_DECKを待つ */ });
+    c.on('open',()=>{ /* ゲストのRANKED_DECKを待つ(再接続時はattachConnが状態を再送) */ });
   });
   Net.peer.on('disconnected',()=>{ if(Net.peer && !Net.peer.destroyed){try{Net.peer.reconnect();}catch(e){}} });
   Net.peer.on('error',err=>{
@@ -3204,7 +3273,7 @@ function manaRowHTML(p){
   return `<div class="mana-row">${p.mana.map(m=>{const def=getCardDef(m.defId),civ=CIVS[def.civ];return `<div class="mana-chip ${m.tapped?'tapped':''}" style="--mc:${civ.color}" data-action="view-card" data-uid="${esc(m.uid)}" title="${esc(def.name)}">${civ.enName[0]}</div>`;}).join('')}</div>`;
 }
 function shieldPipsHTML(p){let s='';for(let i=0;i<5;i++)s+=`<span class="shield-pip ${i<p.shields.length?'':'empty'}"></span>`;const e=p.shields.length>5?`<span style="font-size:10px;margin-left:2px;">+${p.shields.length-5}</span>`:'';return `<span class="shield-pips">${s}</span>${e}`;}
-function playerHeaderHTML(idx,showDot){const p=getPlayer(idx);const clk=(rankedMatch&&Clock.clocks)?`<span class="clock-pill${Clock.clocks.main[idx]<=60?' low':''}" id="clock_${idx}" title="持ち時間">⏱ ${Clock.fmt(Clock.clocks.main[idx])}</span>`:'';return `<div class="player-header"><div class="player-name-block"><span class="player-name">${showDot?'<span class="turn-dot"></span>':''}${esc(p.name)}</span></div><div class="meta-pips">${clk}<span class="deck-count" title="山札 残り${p.deck.length}枚">${ICON_DECK}${p.deck.length}</span><span class="gy-count" data-action="view-graveyard" data-owner="${idx}" title="墓地">${ICON_GY}${p.graveyard.length}</span></div></div>`;}
+function playerHeaderHTML(idx,showDot){const p=getPlayer(idx);const clk=(rankedMatch&&Clock.clocks)?`<span class="clock-pill${Clock.clocks.main[idx]<=60?' low':''}" id="clock_${idx}" title="持ち時間">⏱ ${Clock.fmt(Clock.clocks.main[idx])}</span>`:'';return `<div class="player-header"><div class="player-name-block"><span class="player-name">${showDot?'<span class="turn-dot"></span>':''}${esc(p.name)}</span></div><div class="meta-pips">${clk}<span class="deck-count" title="山札 残り${p.deck.length}枚">${ICON_DECK}${p.deck.length}</span><span class="gy-count" data-action="view-graveyard" data-owner="${idx}" title="墓地">${ICON_GY}${p.graveyard.length}</span>${p.lost&&p.lost.length?`<span class="gy-count" data-action="view-graveyard" data-owner="${idx}" title="ロストゾーン(ゲームから除外)">🕳${p.lost.length}</span>`:''}</div></div>`;}
 function battleZoneHTML(idx){
   const p=getPlayer(idx),isMyZone=idx===ui.myIdx,canAct=isMyDecision(),tgt=!!ui.selectedAttackerUid;
   const oppP=getPlayer(other(idx));
@@ -3349,7 +3418,7 @@ function pendingModalHTML(){
   if(pend.type==='block'){const def=getPlayer(pend.defenderIdx),atk=getPlayer(pend.attackerIdx).battle.find(c=>c.uid===pend.attackerUid),aDef=atk?getCardDef(atk.defId):null;const opts=pend.options.map(uid=>{const c=def.battle.find(x=>x.uid===uid);return cardHTML(c.defId,{action:'block-choose',uid,selectable:true});}).join('');return `<div class="modal-overlay"><div class="modal-box"><div class="modal-title">${esc(def.name)}: ブロックしますか?</div><div style="text-align:center;font-size:12.5px;color:var(--text-muted);">「${esc(aDef?aDef.name:'')}」の攻撃</div><div class="target-grid">${opts}</div><div class="modal-actions"><button class="btn btn-ghost btn-block" data-action="block-decline">ブロックしない</button></div></div></div>`;}
   if(pend.type==='ambush'){const p=getPlayer(pend.controllerIdx),hc=p.hand.find(c=>c.uid===pend.cardUid);if(!hc)return '';const card=getCardDef(hc.defId);const stLabel=pend.isST?'S・トリガー発動!':'奇襲発動!';return `<div class="modal-overlay"><div class="modal-box"><div class="modal-title">${stLabel}</div><div class="modal-card-preview">${cardHTML(card.id,{large:true})}</div><div style="text-align:center;font-size:12.5px;color:var(--text-muted);">無料でプレイしますか?</div><div class="modal-actions row"><button class="btn btn-ghost" data-action="ambush-keep">手札に加える</button><button class="btn btn-primary" data-action="ambush-play">無料でプレイ</button></div></div></div>`;}
   if(pend.type==='chooseTarget'){
-    const labels={regrow:'墓地から戻すクリーチャーを選択',bounce:'手札に戻すクリーチャーを選択',destroy:'破壊するクリーチャーを選択',destroyAny:'破壊するクリーチャーを選択',tap:'タップするクリーチャーを選択',buff:'パワーを上げるクリーチャーを選択',freeSpell:'無料で使用する光の呪文を選択',freeSummon:'無料で召喚するクリーチャーを選択',freeze:'凍結するクリーチャーを選択',selfDiscard:'捨てるカードを選択',stadiumPlace:'呪文をどのスタジアムの下に置く?(+1ドロー)',stadiumCast:'コストを支払わずに唱える呪文を選択',reviveSummon:'場に出すクリーチャーを選択(手札/墓地)',peekMana:'マナゾーンに置くカードを選択(残りは手札→墓地へ)',peekHand:'手札に加えるカードを選択(残りは墓地へ)',manaToHand:'手札に戻すカードを選択(マナゾーン)'};
+    const labels={regrow:'墓地から戻すクリーチャーを選択',bounce:'手札に戻すクリーチャーを選択',destroy:'破壊するクリーチャーを選択',destroyAny:'破壊するクリーチャーを選択',tap:'タップするクリーチャーを選択',buff:'パワーを上げるクリーチャーを選択',freeSpell:'無料で使用する光の呪文を選択',freeSummon:'無料で召喚するクリーチャーを選択',freeze:'凍結するクリーチャーを選択',selfDiscard:'捨てるカードを選択',stadiumPlace:'呪文をどのスタジアムの下に置く?(+1ドロー)',stadiumCast:'コストを支払わずに唱える呪文を選択',reviveSummon:'場に出すクリーチャーを選択(手札/墓地)',peekMana:'マナゾーンに置くカードを選択(残りは手札→墓地へ)',peekHand:'手札に加えるカードを選択(残りは墓地へ)',manaToHand:'手札に戻すカードを選択(マナゾーン)',toLost:'ロストゾーンに送るクリーチャーを選択'};
     let zone;
     if(pend.kind==='regrow')zone=getPlayer(pend.controllerIdx).graveyard;
     else if(pend.kind==='buff')zone=getPlayer(pend.controllerIdx).battle;
@@ -3386,7 +3455,7 @@ function cardModalHTML(){
     return `<div class="modal-overlay"><div class="modal-box"><div class="modal-card-preview">${cardHTML(card.defId,{large:true})}</div>
     ${locked?'<div class="lock-note">⛓ 時の封印: コスト5以下のクリーチャーは出せません</div>':''}
     ${pLimited?'<div class="lock-note">⛓ このターンはもうクリーチャーを出せません</div>':''}
-    ${(def.type==='spell'&&eCost<def.cost)?`<div style="font-size:11px;color:var(--civ-water);text-align:center;">詠唱: コスト${def.cost}→${eCost}</div>`:''}
+    ${(def.type==='spell'&&eCost<def.cost)?`<div style="font-size:11px;color:var(--civ-water);text-align:center;">コスト軽減: ${def.cost}→${eCost}</div>`:''}
     ${!cc&&mt&&!p.charged?'<div style="font-size:11px;color:var(--text-faint);text-align:center;">※マナチャージはターン最初の行動でのみ可能</div>':''}
     <div class="modal-actions"><button class="btn btn-primary btn-block" data-action="open-mana-pay" data-uid="${esc(uid)}" ${cp?'':'disabled'}>${def.type==='creature'?'召喚する':'使用する'}</button><button class="btn btn-ghost btn-block" data-action="charge-mana" data-uid="${esc(uid)}" ${cc?'':'disabled'}>マナゾーンに置く</button><button class="btn btn-ghost btn-block" data-action="close-modal">閉じる</button></div></div></div>`;
   }
@@ -3504,7 +3573,8 @@ function graveyardModalHTML(){
     }
     return `<div class="gy-row"><span class="gy-dot" style="background:${civ.color}"></span><span style="flex:1;">${esc(def.name)}</span>${gsBtn}<span style="color:var(--text-faint);font-size:11px;">${def.type==='creature'?def.power:def.type==='stadium'?'施設':'呪文'}</span></div>`;
   }).join('');
-  return `<div class="modal-overlay"><div class="modal-box"><div class="modal-title">${esc(p.name)}の墓地 (${p.graveyard.length})</div><div class="gy-list">${rows}</div><div class="modal-actions"><button class="btn btn-ghost btn-block" data-action="close-modal">閉じる</button></div></div></div>`;
+  const lost=p.lost&&p.lost.length?`<div class="modal-title" style="margin-top:10px;">ロストゾーン (${p.lost.length})</div><div class="gy-list">${p.lost.map(c=>{const def=getCardDef(c.defId),civ=CIVS[def.civ];return `<div class="gy-row"><span class="gy-dot" style="background:${civ.color}"></span><span style="flex:1;">${esc(def.name)}</span><span style="color:var(--text-faint);font-size:11px;">${def.type==='creature'?def.power:def.type==='stadium'?'施設':'呪文'}</span></div>`;}).join('')}</div>`:'';
+  return `<div class="modal-overlay"><div class="modal-box"><div class="modal-title">${esc(p.name)}の墓地 (${p.graveyard.length})</div><div class="gy-list">${rows}</div>${lost}<div class="modal-actions"><button class="btn btn-ghost btn-block" data-action="close-modal">閉じる</button></div></div></div>`;
 }
 
 /* =====================================================================
