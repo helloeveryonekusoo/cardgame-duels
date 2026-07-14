@@ -414,17 +414,8 @@ img, svg { display:block; }
   58%  { transform:scale(1.1); opacity:1; }
   100% { transform:scale(1.75) rotate(14deg); opacity:0; filter:brightness(3); }
 }
-/* fire-nature multicolor */
-.card[data-multi="fire-nature"] .card-head { background: linear-gradient(120deg, var(--civ-fire) 0%, var(--civ-fire-dark) 40%, var(--civ-nature-dark) 60%, var(--civ-nature) 100%) !important; }
-.card[data-multi="fire-nature"] .card-art  { background: linear-gradient(160deg, var(--civ-fire-dark), var(--civ-nature-dark)) !important; }
-.card[data-multi="water-light"] .card-head { background: linear-gradient(120deg, var(--civ-water) 0%, var(--civ-water-dark) 40%, var(--civ-light-dark) 60%, var(--civ-light) 100%) !important; }
-.card[data-multi="water-light"] .card-art  { background: linear-gradient(160deg, var(--civ-water-dark), var(--civ-light-dark)) !important; }
-.card[data-multi="dark-nature"] .card-head { background: linear-gradient(120deg, var(--civ-dark) 0%, var(--civ-dark-dark) 40%, var(--civ-nature-dark) 60%, var(--civ-nature) 100%) !important; }
-.card[data-multi="dark-nature"] .card-art  { background: linear-gradient(160deg, var(--civ-dark-dark), var(--civ-nature-dark)) !important; }
-.card[data-multi="fire-light"] .card-head  { background: linear-gradient(120deg, var(--civ-fire) 0%, var(--civ-fire-dark) 40%, var(--civ-light-dark) 60%, var(--civ-light) 100%) !important; }
-.card[data-multi="fire-light"] .card-art   { background: linear-gradient(160deg, var(--civ-fire-dark), var(--civ-light-dark)) !important; }
-.card[data-multi="fire-nature-water"] .card-head { background: linear-gradient(120deg, var(--civ-fire) 0%, var(--civ-fire-dark) 30%, var(--civ-nature-dark) 50%, var(--civ-nature-dark) 60%, var(--civ-water-dark) 80%, var(--civ-water) 100%) !important; }
-.card[data-multi="fire-nature-water"] .card-art  { background: linear-gradient(160deg, var(--civ-fire-dark), var(--civ-nature-dark), var(--civ-water-dark)) !important; }
+/* 多色カードのグラデーションは cards-view.js の multiCivStyles() が
+   文明の組み合わせから動的に生成する(ここに個別ルールを足す必要はない) */
 </style>
 <script src="https://unpkg.com/peerjs@1.5.4/dist/peerjs.min.js"></script>
 <script type="module">
@@ -753,6 +744,7 @@ function effectText(effect, isEtb) {
     case 'ramp': return `${p}自分の山札の上から1枚をマナゾーンに置く。`;
     case 'addShield': return `${p}自分の山札の上から1枚をシールドゾーンに置く。`;
     case 'destroyPowerLE': return `${p}パワー${effect.value}以下の相手クリーチャー1体を破壊する。`;
+    case 'destroyPowerGE': return `${p}パワー${effect.value}以上の相手クリーチャー1体を破壊する。`;
     case 'regrow': return `${p}自分の墓地のクリーチャー1体を手札に戻す。`;
     case 'buffPower': return `${p}自分のクリーチャー1体のパワーを+${effect.value}する(このターン中)。`;
     case 'tapCreature':    return `${p}相手のクリーチャー1体をタップする。`;
@@ -880,6 +872,7 @@ const RAW_CARDS = [
   {id:'m5', civ:'multi', civs:['fire','nature','water'], type:'creature', name:'焔嵐の荒獣ヴォルガナ', cost:4, power:6000, abilities:["shieldTrigger","multiBreak","guard","rush"]},
   {id:'m6', civ:'multi', civs:['fire','water'], type:'creature', name:'熱湯の襲撃者ボイル', cost:3, power:5000, abilities:["speed","tideBreak"]},
   {id:'w22', civ:'water', type:'spell', name:'忘却の海淵', cost:5, abilities:["shieldTrigger"], effect:{"type":"sendToLost","value":2}},
+  {id:'f16', civ:'fire', type:'creature', name:'巨竜狩りの戦士イグナ', cost:3, power:1000, abilities:["shieldTrigger","speed"], etb:{"type":"destroyPowerGE","value":7000}},
 ];
 /* ═══════════════════════════════════════════════════════════════
    カードまわりのロジック(カードのデータ本体は cards-data.js)
@@ -1610,6 +1603,13 @@ class GameEngine {
     }
     case 'destroyPowerLE': {
       const targets = opp.battle.filter(c => this.effectivePower(c) <= effect.value);
+      if (targets.length === 0) { this.log(state, `(対象がなく何も起きなかった)`); return; }
+      if (targets.length === 1) this.resolveDestroy(state, controllerIdx, targets[0].uid);
+      else state.pending = { type: 'chooseTarget', kind: 'destroy', controllerIdx, options: targets.map(c => c.uid) };
+      return;
+    }
+    case 'destroyPowerGE': {
+      const targets = opp.battle.filter(c => this.effectivePower(c) >= effect.value);
       if (targets.length === 0) { this.log(state, `(対象がなく何も起きなかった)`); return; }
       if (targets.length === 1) this.resolveDestroy(state, controllerIdx, targets[0].uid);
       else state.pending = { type: 'chooseTarget', kind: 'destroy', controllerIdx, options: targets.map(c => c.uid) };
@@ -3168,6 +3168,23 @@ function cardFootHTML(def,opts){
   const typeLabel = def.type==='stadium' ? 'スタジアム' : '呪文';
   return `<div class="card-foot" style="justify-content:${spAb?'space-between':'flex-start'};"><span style="font-family:var(--font-card);font-size:${opts.large?'11px':'8px'};color:var(--text-muted);">${typeLabel}</span>${spAb}</div>`;
 }
+// 多色カードのグラデーションを文明の組み合わせから動的に生成する
+// (どの2〜3色の組み合わせでも、CSSに個別ルールを足さずに正しく色が付く)
+function multiCivStyles(civs){
+  const n=civs.length, head=[], darks=[];
+  civs.forEach((k,i)=>{
+    const c=CIVS[k]; if(!c) return;
+    const s=i*100/n, e=(i+1)*100/n;
+    if(i===0)        head.push(`${c.color} 0%`, `${c.colorDark} ${Math.round(e-10)}%`);
+    else if(i===n-1) head.push(`${c.colorDark} ${Math.round(s+10)}%`, `${c.color} 100%`);
+    else             head.push(`${c.colorDark} ${Math.round(s+10)}%`, `${c.colorDark} ${Math.round(e-10)}%`);
+    darks.push(c.colorDark);
+  });
+  return {
+    head:` style="background:linear-gradient(120deg, ${head.join(', ')});"`,
+    art:` style="background:linear-gradient(160deg, ${darks.join(', ')});"`
+  };
+}
 function cardHTML(defId,opts){
   opts=opts||{};const def=getCardDef(defId);const cls=['card'];
   if(opts.large)cls.push('lg');if(opts.tapped)cls.push('tapped');if(opts.sick)cls.push('sick');if(opts.frozen)cls.push('frozen');if(opts.attacking)cls.push('attacking');if(opts.beingHit)cls.push('being-hit');if(opts.resolving)cls.push('resolving');
@@ -3175,9 +3192,10 @@ function cardHTML(defId,opts){
   if(opts.selectable&&!opts.inert)cls.push('selectable');else cls.push('not-selectable');
   if(opts.selected)cls.push('selected-attacker');if(opts.validTarget)cls.push('valid-target');
   const da=[];if(opts.action&&!opts.inert)da.push(`data-action="${opts.action}"`);if(opts.uid)da.push(`data-uid="${esc(opts.uid)}"`);if(def.civs)da.push(`data-multi="${def.civs.join('-')}"`);
+  const mg=(def.civs&&def.civs.length>1)?multiCivStyles(def.civs):null;
   return `<div class="${cls.join(' ')}" data-civ="${def.civ}" ${da.join(' ')}>
-    <div class="card-head"><div class="card-cost">${def.cost}</div><div class="card-name">${esc(def.name)}</div></div>
-    <div class="card-art">${CIV_ICON[def.civ]}</div>
+    <div class="card-head"${mg?mg.head:''}><div class="card-cost">${def.cost}</div><div class="card-name">${esc(def.name)}</div></div>
+    <div class="card-art"${mg?mg.art:''}>${CIV_ICON[def.civ]}</div>
     <div class="card-body"><div class="card-text">${esc(def.text)}</div></div>
     ${cardFootHTML(def,opts)}${opts.sick?'<div class="card-sick-tag">準備中</div>':''}${opts.frozen?'<div class="card-frozen-tag">凍 結</div>':''}
   </div>`;
