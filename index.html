@@ -416,6 +416,58 @@ img, svg { display:block; }
 }
 /* 多色カードのグラデーションは cards-view.js の multiCivStyles() が
    文明の組み合わせから動的に生成する(ここに個別ルールを足す必要はない) */
+
+/* ═══ 対戦中エフェクト(検知は board.js の detectFx 系) ═══ */
+/* 召喚・ドローのポップイン */
+.card.entering { animation: cardEnter .5s cubic-bezier(.2,1.4,.4,1), enterGlow .65s ease-out; }
+@keyframes cardEnter {
+  0%   { opacity:0; transform:scale(.4) translateY(14px); }
+  60%  { opacity:1; transform:scale(1.07) translateY(-3px); }
+  100% { transform:scale(1) translateY(0); }
+}
+@keyframes enterGlow {
+  0%   { box-shadow:0 0 0 0 rgba(255,255,255,0); }
+  35%  { box-shadow:0 0 20px 4px rgba(255,255,255,.5); }
+  100% { box-shadow:0 0 0 0 rgba(255,255,255,0); }
+}
+/* 破壊されたクリーチャーのゴースト(白く光ってから砕け落ちる) */
+.card.dying { pointer-events:none; animation: cardDie .8s ease-in forwards; }
+@keyframes cardDie {
+  0%   { opacity:1; filter:brightness(1); transform:none; }
+  30%  { opacity:.95; filter:brightness(1.8) saturate(.5); transform:scale(1.02); }
+  100% { opacity:0; filter:brightness(.25) saturate(0); transform:translateY(18px) rotate(7deg) scale(.8); }
+}
+/* マナチャージのポップ */
+.mana-chip.new { animation: manaPop .55s cubic-bezier(.2,1.5,.4,1), manaGlow .7s ease-out; }
+@keyframes manaPop { 0%{transform:scale(0);} 70%{transform:scale(1.35);} 100%{transform:scale(1);} }
+@keyframes manaGlow { 0%{box-shadow:0 0 0 0 var(--mc);} 40%{box-shadow:0 0 12px 2px var(--mc);} 100%{box-shadow:0 0 0 0 rgba(0,0,0,0);} }
+/* ターン開始バナー */
+.turn-banner {
+  position:fixed; top:50%; left:50%; transform:translate(-50%,-50%); z-index:60; pointer-events:none;
+  padding:14px 52px; text-align:center;
+  background:linear-gradient(90deg, transparent, rgba(0,0,0,.82) 16%, rgba(0,0,0,.82) 84%, transparent);
+  animation: turnIn .3s ease-out both, turnOut .4s ease-in .95s forwards;
+}
+.turn-banner .tb-text { font-family:var(--font-display); font-size:26px; font-weight:700; letter-spacing:.22em; color:#fff; white-space:nowrap; }
+.turn-banner.mine .tb-text  { color:var(--civ-light); text-shadow:0 0 20px var(--civ-light); }
+.turn-banner.theirs .tb-text{ color:#ff9a8a; text-shadow:0 0 20px var(--civ-fire); }
+@keyframes turnIn  { from{opacity:0; transform:translate(-50%,-50%) scaleX(.55);} to{opacity:1; transform:translate(-50%,-50%) scaleX(1);} }
+@keyframes turnOut { to{opacity:0; transform:translate(-50%,-56%) scaleX(1);} }
+/* 呪文発動バナー */
+.spell-banner {
+  position:fixed; top:36%; left:50%; transform:translate(-50%,-50%); z-index:59; pointer-events:none;
+  text-align:center; padding:12px 36px; border-radius:12px;
+  background:rgba(8,8,14,.86); border:1px solid var(--sc);
+  box-shadow:0 0 26px var(--sc), inset 0 0 18px rgba(0,0,0,.6);
+  animation: spellIn .3s cubic-bezier(.2,1.3,.4,1) both, turnOut .35s ease-in 1.1s forwards;
+}
+.spell-banner .sb-name { font-family:var(--font-card); font-weight:700; font-size:18px; color:#fff;
+  background:linear-gradient(90deg, var(--sc), #fff, var(--sc2)); -webkit-background-clip:text; background-clip:text; -webkit-text-fill-color:transparent; }
+.spell-banner .sb-sub { font-size:10px; color:var(--sc); letter-spacing:.34em; margin-bottom:3px; }
+@keyframes spellIn { from{opacity:0; transform:translate(-50%,-50%) scale(.6) rotate(-2deg);} to{opacity:1; transform:translate(-50%,-50%) scale(1) rotate(0);} }
+/* 勝敗バナーのスタンプ演出 */
+.winner-banner { animation: stampIn .55s cubic-bezier(.2,1.4,.4,1) both; }
+@keyframes stampIn { 0%{opacity:0; transform:scale(2.2) rotate(-4deg);} 60%{opacity:1; transform:scale(.95) rotate(1deg);} 100%{transform:scale(1) rotate(0);} }
 </style>
 <script src="https://unpkg.com/peerjs@1.5.4/dist/peerjs.min.js"></script>
 <script type="module">
@@ -1531,6 +1583,8 @@ class GameEngine {
   return { ok: true };
 }
   castSpellEffects(state, controllerIdx, card, def) {
+  // UI演出用: 最後に発動した呪文(通常使用・ST・無料発動すべてここを通る)
+  state.lastSpell = { seq: (state.lastSpell ? state.lastSpell.seq + 1 : 1), defId: card.defId, by: controllerIdx };
   state.effectQueue = state.effectQueue || [];
   const steps = [];
   if (def.effect) steps.push({ controllerIdx, effect: def.effect });
@@ -2261,6 +2315,14 @@ const ui = {
   manaPay: null, manaSelected: [],
   breakAnim: null, prevShields: null, spectatorCount: 0,
   attackAnim: null, prevAttackSeq: 0,
+  // 対戦中エフェクト(検知は board.js の detectFx 系。リセットは resetBattleFx)
+  turnBanner: null, prevTurnKey: null,     // ターン開始バナー
+  spellBanner: null, prevSpellSeq: 0,      // 呪文発動バナー
+  enterFx: {}, prevBattleUids: null,       // 召喚ポップイン (uid→ts)
+  deathFx: [],                             // 破壊ゴースト [{uid,defId,ownerIdx,ts}]
+  manaFx: {}, prevManaUids: null,          // マナチャージポップ (uid→ts)
+  handFx: {}, prevHandUids: null,          // ドローポップ (uid→ts)
+  drawFxBack: {},                          // 相手手札(裏面)のドローポップ (playerIdx→ts)
   rulesView: false,  // ルール確認モーダル(全画面共通)
   logView: false,    // 試合ログ全文モーダル(対戦中)
 };
@@ -2707,7 +2769,7 @@ class NetworkSession {
           _rankedReported=false; lastRatingResult=null;
           pickBattleBg();
           game=Engine.createGame(playerName,guestPlayerName,hostDeckIds,guestDeckIds,decideFirstIdx());
-          ui.prevShields=null; ui.breakAnim=null; ui.prevAttackSeq=0; ui.attackAnim=null;
+          resetBattleFx();
           Clock.init(); Clock.startLoop();
           ui.screen='play'; this.broadcastState(); render();
         }
@@ -2715,7 +2777,7 @@ class NetworkSession {
       }
       if(data.type==='DECK_READY'){
         guestDeckIds=data.deck; guestPlayerName=data.name||'プレイヤー2';
-        if(hostDeckIds){ pickBattleBg(); game=Engine.createGame(playerName,guestPlayerName,hostDeckIds,guestDeckIds,decideFirstIdx()); ui.prevShields=null; ui.breakAnim=null; ui.prevAttackSeq=0; ui.attackAnim=null; ui.screen='play'; this.broadcastState(); render(); }
+        if(hostDeckIds){ pickBattleBg(); game=Engine.createGame(playerName,guestPlayerName,hostDeckIds,guestDeckIds,decideFirstIdx()); resetBattleFx(); ui.screen='play'; this.broadcastState(); render(); }
       } else if(data.type==='ACTION'){ applyAction(data); afterEngineAction(); }
     } else {
       if(data.type==='STATE'){
@@ -2724,8 +2786,7 @@ class NetworkSession {
         ui.spectatorCount=data.spectators||0;
         this.actionInFlight=false;
         if(data.clocks){ Clock.clocks=data.clocks; Clock.interruptDeadline=data.interrupt||null; }
-        detectAttack();
-        detectShieldBreak();
+        detectFx();
         ui.screen=game.winner!==null?'gameover':'play';
         ui.selectedAttackerUid=null; ui.modal=null; ui.graveyardView=null; ui.manaPay=null; ui.manaSelected=[]; render();
         if(game.winner!==null){ Clock.stop(); maybeReportRanked(); }
@@ -2835,7 +2896,7 @@ class NetworkSession {
 }
 const Net = new NetworkSession();
 
-function afterEngineAction(){ Net.broadcastState(); detectAttack(); detectShieldBreak(); if(game.winner!==null) ui.screen='gameover'; render(); maybeRunCpu(); maybeReportRanked(); }
+function afterEngineAction(){ Net.broadcastState(); detectFx(); if(game.winner!==null) ui.screen='gameover'; render(); maybeRunCpu(); maybeReportRanked(); }
 
 // 認証エラーを日本語に変換
 function translateAuthError(e){
@@ -3018,12 +3079,12 @@ function beginCpuAsRanked(){
     const firstIdx=decideFirstIdx();
     pickBattleBg();
     game=Engine.createGame(account?account.id:'あなた', fakeName, hostDeckIds, cpuDeck, firstIdx);
-    ui.prevShields=null; ui.breakAnim=null; ui.prevAttackSeq=0; ui.attackAnim=null;
+    resetBattleFx();
     if(mmState&&mmState.unsubMatch){try{mmState.unsubMatch();}catch(e){}}
     mmState=null;
     Clock.init(); Clock.startLoop();
     ui.screen='play'; render();
-    detectShieldBreak(); detectAttack();
+    detectFx();
     maybeRunCpu();
   }, 1400);
 }
@@ -3042,9 +3103,9 @@ function startCpuGame(){
   const firstIdx=decideFirstIdx();
   pickBattleBg();
   game=Engine.createGame(playerName||'あなた','CPU【'+cpuDeckName+'】',hostDeckIds,cpuDeck,firstIdx);
-  ui.prevShields=null; ui.breakAnim=null; ui.prevAttackSeq=0; ui.attackAnim=null;
+  resetBattleFx();
   ui.screen='play'; render();
-  detectShieldBreak(); detectAttack();
+  detectFx();
   maybeRunCpu();
 }
 function maybeRunCpu(){
@@ -3078,7 +3139,7 @@ function runCpuDecision(){
   // Resolve a single pending decision that belongs to the CPU, then hand control back.
   try{ AI.autoResolve(game, 1); }catch(e){ console.warn('cpu decision err',e); }
   cpuThinking=false;
-  detectAttack(); detectShieldBreak();
+  detectFx();
   if(game.winner!==null) ui.screen='gameover';
   render();
   maybeRunCpu();
@@ -3096,10 +3157,10 @@ function runCpuTurn(){
     // If a human-owned decision appears mid-plan, stop and wait for the human.
     if(game.pending){
       const owner=cpuDecisionOwner(game.pending);
-      if(owner===0){ cpuThinking=false; detectAttack(); detectShieldBreak(); render(); return; }
+      if(owner===0){ cpuThinking=false; detectFx(); render(); return; }
       // CPU-owned pending: resolve then continue.
       try{ AI.autoResolve(game,1); }catch(e){}
-      detectAttack(); detectShieldBreak(); render();
+      detectFx(); render();
       setTimeout(step, 500); return;
     }
     if(i>=plan.length){ cpuThinking=false; return; }
@@ -3112,7 +3173,7 @@ function runCpuTurn(){
       else if(a.kind==='atkCreature') Engine.declareAttack(game,a.uid,'creature',a.target);
       else if(a.kind==='endTurn') Engine.endTurn(game);
     }catch(e){ console.warn('cpu step err',a,e); }
-    detectAttack(); detectShieldBreak();
+    detectFx();
     if(game.winner!==null){ ui.screen='gameover'; cpuThinking=false; render(); maybeReportRanked(); return; }
     render();
     setTimeout(step, 550);
@@ -3188,6 +3249,7 @@ function multiCivStyles(civs){
 function cardHTML(defId,opts){
   opts=opts||{};const def=getCardDef(defId);const cls=['card'];
   if(opts.large)cls.push('lg');if(opts.tapped)cls.push('tapped');if(opts.sick)cls.push('sick');if(opts.frozen)cls.push('frozen');if(opts.attacking)cls.push('attacking');if(opts.beingHit)cls.push('being-hit');if(opts.resolving)cls.push('resolving');
+  if(opts.entering)cls.push('entering');if(opts.dying)cls.push('dying');
   if(opts.inert)cls.push('inert');
   if(opts.selectable&&!opts.inert)cls.push('selectable');else cls.push('not-selectable');
   if(opts.selected)cls.push('selected-attacker');if(opts.validTarget)cls.push('valid-target');
@@ -3200,7 +3262,7 @@ function cardHTML(defId,opts){
     ${cardFootHTML(def,opts)}${opts.sick?'<div class="card-sick-tag">準備中</div>':''}${opts.frozen?'<div class="card-frozen-tag">凍 結</div>':''}
   </div>`;
 }
-function cardBackHTML(large){ return `<div class="card card-back not-selectable${large?' lg':''}" style="height:${large?'196px':'110px'};"><div class="mark"></div></div>`; }
+function cardBackHTML(large,extraCls){ return `<div class="card card-back not-selectable${large?' lg':''}${extraCls||''}" style="height:${large?'196px':'110px'};"><div class="mark"></div></div>`; }
 
 /* =====================================================================
    DECK BUILDER SCREEN
@@ -3288,7 +3350,7 @@ function deckBuilderScreenHTML(){
    ===================================================================== */
 function manaRowHTML(p){
   if(!p.mana.length)return `<div class="mana-row"><span class="empty-hint">マナなし</span></div>`;
-  return `<div class="mana-row">${p.mana.map(m=>{const def=getCardDef(m.defId),civ=CIVS[def.civ];return `<div class="mana-chip ${m.tapped?'tapped':''}" style="--mc:${civ.color}" data-action="view-card" data-uid="${esc(m.uid)}" title="${esc(def.name)}">${civ.enName[0]}</div>`;}).join('')}</div>`;
+  return `<div class="mana-row">${p.mana.map(m=>{const def=getCardDef(m.defId),civ=CIVS[def.civ];return `<div class="mana-chip ${m.tapped?'tapped':''}${ui.manaFx[m.uid]?' new':''}" style="--mc:${civ.color}" data-action="view-card" data-uid="${esc(m.uid)}" title="${esc(def.name)}">${civ.enName[0]}</div>`;}).join('')}</div>`;
 }
 function shieldPipsHTML(p){let s='';for(let i=0;i<5;i++)s+=`<span class="shield-pip ${i<p.shields.length?'':'empty'}"></span>`;const e=p.shields.length>5?`<span style="font-size:10px;margin-left:2px;">+${p.shields.length-5}</span>`:'';return `<span class="shield-pips">${s}</span>${e}`;}
 function playerHeaderHTML(idx,showDot){const p=getPlayer(idx);const clk=(rankedMatch&&Clock.clocks)?`<span class="clock-pill${Clock.clocks.main[idx]<=60?' low':''}" id="clock_${idx}" title="持ち時間">⏱ ${Clock.fmt(Clock.clocks.main[idx])}</span>`:'';return `<div class="player-header"><div class="player-name-block"><span class="player-name">${showDot?'<span class="turn-dot"></span>':''}${esc(p.name)}</span></div><div class="meta-pips">${clk}<span class="deck-count" title="山札 残り${p.deck.length}枚">${ICON_DECK}${p.deck.length}</span><span class="gy-count" data-action="view-graveyard" data-owner="${idx}" title="墓地">${ICON_GY}${p.graveyard.length}</span>${p.lost&&p.lost.length?`<span class="gy-count" data-action="view-graveyard" data-owner="${idx}" title="ロストゾーン(ゲームから除外)">🕳${p.lost.length}</span>`:''}</div></div>`;}
@@ -3301,11 +3363,13 @@ function battleZoneHTML(idx){
     const sd=getCardDef(s.defId);
     return `<div class="stadium-tile" data-action="view-stadium" data-uid="${esc(s.uid)}" data-owner="${idx}"><span class="stadium-name">${esc(sd.name)}</span><span class="stadium-cnt${s.under.length>=4?' ready':''}">${s.under.length}/4</span></div>`;
   }).join('')}</div>`:'';
-  if(!p.battle.length)return `${stadiumsHTML}<div class="battle-zone"><span class="empty-zone-hint">バトルゾーンは空です</span></div>`;
+  // 破壊されたクリーチャーのゴースト(砕けて消える演出)
+  const ghosts=ui.deathFx.filter(d=>d.ownerIdx===idx).map(d=>cardHTML(d.defId,{dying:true})).join('');
+  if(!p.battle.length)return `${stadiumsHTML}<div class="battle-zone">${ghosts||'<span class="empty-zone-hint">バトルゾーンは空です</span>'}</div>`;
   const aa=ui.attackAnim;
   const aaResolving=aa&&attackResolving();
   return `${stadiumsHTML}<div class="battle-zone">${p.battle.map(c=>{
-    const opts={tapped:c.tapped,sick:c.sick,buff:c.buff,frozen:c.frozenBy!==undefined};
+    const opts={tapped:c.tapped,sick:c.sick,buff:c.buff,frozen:c.frozenBy!==undefined,entering:!!ui.enterFx[c.uid]};
     if(aa){ if(c.uid===aa.attackerUid){opts.attacking=true;opts.resolving=aaResolving;} else if(aa.targetType==='creature'&&c.uid===aa.targetUid){opts.beingHit=true;opts.resolving=aaResolving;} }
     const cantAtk=c.frozenBy!==undefined||(c.justEntered&&oppHasSlow);
     const hasRush=getCardDef(c.defId).abilities.includes('rush');
@@ -3319,7 +3383,7 @@ function battleZoneHTML(idx){
     else if(!tgt&&canAct&&isMyZone&&atkSel){opts.selectable=true;opts.action='select-attacker';opts.uid=c.uid;}
     else{opts.selectable=true;opts.action='view-card';opts.uid=c.uid;}
     return cardHTML(c.defId,opts);
-  }).join('')}</div>`;
+  }).join('')}${ghosts}</div>`;
 }
 function handRowHTML(idx){
   const p=getPlayer(idx),isMyHand=idx===ui.myIdx,canAct=isMyDecision(),tgt=!!ui.selectedAttackerUid;
@@ -3329,9 +3393,10 @@ function handRowHTML(idx){
   const rowId=`handRow_${idx}`;
   let inner;
   if(!isMyHand||ui.role==='spectator'){
-    inner=p.hand.map(()=>cardBackHTML(false)).join('');
+    // ドロー直後は一番新しい裏面カードをポップさせる
+    inner=p.hand.map((c,i)=>cardBackHTML(false, (ui.drawFxBack[idx]&&i===p.hand.length-1)?' entering':'' )).join('');
   } else {
-    inner=p.hand.map(c=>{const opts=(canAct&&!tgt)?{selectable:true,action:'open-hand-card',uid:c.uid}:{};return cardHTML(c.defId,opts);}).join('');
+    inner=p.hand.map(c=>{const opts=(canAct&&!tgt)?{selectable:true,action:'open-hand-card',uid:c.uid}:{};if(ui.handFx[c.uid])opts.entering=true;return cardHTML(c.defId,opts);}).join('');
   }
   const btns=many?`<div class="hand-scroll-btn left" data-action="hand-scroll" data-dir="-1" data-row="${rowId}">‹</div><div class="hand-scroll-btn right" data-action="hand-scroll" data-dir="1" data-row="${rowId}">›</div>`:'';
   const pill=(isMyHand&&ui.role!=='spectator')?`<div class="hand-count-pill">手札 ${p.hand.length}枚</div>`:'';
@@ -3407,6 +3472,116 @@ function detectShieldBreak(){
     }
   }
   ui.prevShields=cur;
+}
+
+/* ═══ 対戦中エフェクトの検知 ═══
+   状態の差分から演出をトリガーする。detectFx() が唯一の入口で、
+   エンジン実行後(ホスト)・STATE受信後(ゲスト/観戦)に呼ばれる。 */
+function detectFx(){
+  detectAttack(); detectShieldBreak();
+  detectTurnBanner(); detectSpellBanner(); detectZoneFx();
+}
+// ゲーム開始・終了時にエフェクト関連の状態を全て初期化する
+function resetBattleFx(){
+  ui.prevShields=null; ui.breakAnim=null; ui.prevAttackSeq=0; ui.attackAnim=null;
+  ui.turnBanner=null; ui.prevTurnKey=null; ui.spellBanner=null; ui.prevSpellSeq=0;
+  ui.enterFx={}; ui.prevBattleUids=null; ui.deathFx=[];
+  ui.manaFx={}; ui.prevManaUids=null; ui.handFx={}; ui.prevHandUids=null; ui.drawFxBack={};
+}
+// ターン開始バナー(「あなたのターン」/「相手のターン」)
+function detectTurnBanner(){
+  if(!game||game.winner!==null){ ui.prevTurnKey=null; return; }
+  const key=game.turnCount+':'+game.active;
+  if(ui.prevTurnKey===key) return;
+  const isFirst=ui.prevTurnKey===null;
+  ui.prevTurnKey=key;
+  const mine=ui.role!=='spectator'&&game.active===ui.myIdx;
+  ui.turnBanner={ mine, name:game.players[game.active].name, first:isFirst, ts:Date.now() };
+  setTimeout(()=>{ if(ui.turnBanner&&Date.now()-ui.turnBanner.ts>=1300){ui.turnBanner=null;render();} },1400);
+}
+// 呪文発動バナー(エンジンの lastSpell から検知)
+function detectSpellBanner(){
+  if(!game||!game.lastSpell){ ui.prevSpellSeq=0; return; }
+  const ls=game.lastSpell;
+  if(ls.seq===ui.prevSpellSeq) return;
+  ui.prevSpellSeq=ls.seq;
+  const def=getCardDef(ls.defId);
+  if(!def) return;
+  ui.spellBanner={ name:def.name, civ:def.civ, civs:def.civs||null, ts:Date.now() };
+  setTimeout(()=>{ if(ui.spellBanner&&Date.now()-ui.spellBanner.ts>=1400){ui.spellBanner=null;render();} },1500);
+}
+// 召喚ポップ・破壊ゴースト・マナチャージ・ドローの検知
+function detectZoneFx(){
+  if(!game){ ui.enterFx={}; ui.deathFx=[]; ui.manaFx={}; ui.handFx={}; ui.drawFxBack={};
+    ui.prevBattleUids=null; ui.prevManaUids=null; ui.prevHandUids=null; return; }
+  const now=Date.now();
+  let added=false;
+  const curBattle=[], curMana=[], curHand=[];
+  for(let i=0;i<2;i++){
+    const p=game.players[i];
+    curBattle.push(p.battle.map(c=>({uid:c.uid,defId:c.defId})));
+    curMana.push(p.mana.map(c=>c.uid));
+    curHand.push(p.hand.map(c=>c.uid));
+    if(ui.prevBattleUids){
+      const prev=ui.prevBattleUids[i], prevSet=new Set(prev.map(x=>x.uid)), curSet=new Set(p.battle.map(c=>c.uid));
+      // 召喚: 前回いなかったクリーチャー(大量出現はゲーム切替とみなして抑制)
+      const entered=p.battle.filter(c=>!prevSet.has(c.uid));
+      if(entered.length>0&&entered.length<=4){ entered.forEach(c=>{ui.enterFx[c.uid]=now;}); added=true; }
+      // 破壊: 場から消えて墓地/ロストに行ったカードだけゴースト表示(バウンス等は除外)
+      const gone=prev.filter(x=>!curSet.has(x.uid));
+      if(gone.length){
+        const gy=new Set([...p.graveyard.map(c=>c.uid), ...((p.lost||[]).map(c=>c.uid))]);
+        gone.filter(x=>gy.has(x.uid)).slice(0,4).forEach(x=>{ ui.deathFx.push({uid:x.uid,defId:x.defId,ownerIdx:i,ts:now}); added=true; });
+      }
+    }
+    if(ui.prevManaUids){
+      const prevSet=new Set(ui.prevManaUids[i]);
+      const newMana=curMana[i].filter(u=>!prevSet.has(u));
+      if(newMana.length>0&&newMana.length<=4){ newMana.forEach(u=>{ui.manaFx[u]=now;}); added=true; }
+    }
+    if(ui.prevHandUids){
+      const prevSet=new Set(ui.prevHandUids[i]);
+      const newHand=curHand[i].filter(u=>!prevSet.has(u));
+      if(newHand.length>0&&newHand.length<=3){ newHand.forEach(u=>{ui.handFx[u]=now;}); ui.drawFxBack[i]=now; added=true; }
+    }
+  }
+  ui.prevBattleUids=curBattle; ui.prevManaUids=curMana; ui.prevHandUids=curHand;
+  if(added) scheduleFxSweep();
+}
+// 期限切れの一時エフェクトを掃除して1回だけ再描画する
+function scheduleFxSweep(){
+  setTimeout(()=>{
+    const now=Date.now(); let dirty=false;
+    for(const k in ui.enterFx){ if(now-ui.enterFx[k]>=650){ delete ui.enterFx[k]; dirty=true; } }
+    for(const k in ui.manaFx){ if(now-ui.manaFx[k]>=650){ delete ui.manaFx[k]; dirty=true; } }
+    for(const k in ui.handFx){ if(now-ui.handFx[k]>=650){ delete ui.handFx[k]; dirty=true; } }
+    for(const k in ui.drawFxBack){ if(now-ui.drawFxBack[k]>=650){ delete ui.drawFxBack[k]; dirty=true; } }
+    const nDeath=ui.deathFx.length;
+    ui.deathFx=ui.deathFx.filter(d=>now-d.ts<850);
+    if(ui.deathFx.length!==nDeath) dirty=true;
+    if(dirty){ render(); }
+    // まだ生きている演出が残っていればもう一度掃除を予約
+    if(Object.keys(ui.enterFx).length||Object.keys(ui.manaFx).length||Object.keys(ui.handFx).length||Object.keys(ui.drawFxBack).length||ui.deathFx.length) scheduleFxSweep();
+  }, 350);
+}
+// ターン開始バナー(再描画してもアニメが途中から続くよう負のdelayを入れる)
+function turnBannerHTML(){
+  if(!ui.turnBanner) return '';
+  const t=ui.turnBanner, e=Date.now()-t.ts;
+  if(e>1400) return '';
+  const txt=ui.role==='spectator'?`${esc(t.name)}のターン`:(t.mine?'あなたのターン':'相手のターン');
+  const dly=`animation-delay:${-e}ms,${Math.max(0,950-e)}ms;`;
+  return `<div class="turn-banner${t.mine?' mine':' theirs'}" style="${dly}"><div class="tb-text">${txt}</div></div>`;
+}
+// 呪文発動バナー
+function spellBannerHTML(){
+  if(!ui.spellBanner) return '';
+  const s=ui.spellBanner, e=Date.now()-s.ts;
+  if(e>1500) return '';
+  const c1=CIVS[s.civs&&s.civs.length?s.civs[0]:s.civ]||CIVS.multi;
+  const c2=s.civs&&s.civs.length>1?CIVS[s.civs[s.civs.length-1]]:c1;
+  const dly=`animation-delay:${-e}ms,${Math.max(0,1100-e)}ms;`;
+  return `<div class="spell-banner" style="--sc:${c1.color};--sc2:${c2.color};${dly}"><div class="sb-sub">✦ 呪文発動 ✦</div><div class="sb-name">${esc(s.name)}</div></div>`;
 }
 function opponentRowHTML(){const oi=other(ui.myIdx),p=getPlayer(oi),tgt=!!ui.selectedAttackerUid&&isMyDecision();const selAtk=tgt?getPlayer(ui.myIdx).battle.find(c=>c.uid===ui.selectedAttackerUid):null;const canDirect=!!selAtk&&!selAtk.sick;const beingHitDirect=ui.attackAnim&&ui.attackAnim.direct&&ui.attackAnim.targetType==='player'&&game.lastAttack&&game.lastAttack.defenderIdx===oi;return `<div class="player-row opponent">${playerHeaderHTML(oi,game.active===oi)}${tgt&&canDirect?`<div class="target-face valid-target" data-action="attack-player">${esc(p.name)} を直接攻撃 ⟶</div>`:''}${manaRowHTML(p)}${battleZoneHTML(oi)}${handRowHTML(oi)}</div>`;}
 function myRowHTML(){const p=getPlayer(ui.myIdx);return `<div class="player-row mine">${battleZoneHTML(ui.myIdx)}${manaRowHTML(p)}${handRowHTML(ui.myIdx)}${playerHeaderHTML(ui.myIdx,game.active===ui.myIdx)}</div>`;}
@@ -3856,6 +4031,8 @@ class App {
     if(!game.pending){html+=cardModalHTML();html+=graveyardModalHTML();html+=manaPayModalHTML();html+=stadiumModalHTML();}
     html += logModalHTML();
     html += attackBannerHTML();
+    html += spellBannerHTML();
+    html += turnBannerHTML();
     return html;
   }
 
