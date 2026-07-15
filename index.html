@@ -469,6 +469,41 @@ img, svg { display:block; }
 .winner-banner { animation: stampIn .55s cubic-bezier(.2,1.4,.4,1) both; }
 @keyframes stampIn { 0%{opacity:0; transform:scale(2.2) rotate(-4deg);} 60%{opacity:1; transform:scale(.95) rotate(1deg);} 100%{transform:scale(1) rotate(0);} }
 
+/* ═══ 攻撃エフェクト ═══ */
+/* 攻撃者の突進(自分の場は上へ、相手の場は下へ) */
+.card.attacking.atk-up:not(.resolving)   { animation: lungeUp .55s cubic-bezier(.3,1.3,.4,1) 2; }
+.card.attacking.atk-down:not(.resolving) { animation: lungeDown .55s cubic-bezier(.3,1.3,.4,1) 2; }
+@keyframes lungeUp   { 0%{transform:none;} 35%{transform:translateY(-16px) scale(1.1) rotate(-2deg);} 100%{transform:none;} }
+@keyframes lungeDown { 0%{transform:none;} 35%{transform:translateY(16px) scale(1.1) rotate(2deg);} 100%{transform:none;} }
+/* 被弾側の白い衝撃フラッシュ */
+.card.being-hit::after { content:''; position:absolute; inset:0; z-index:6; pointer-events:none; border-radius:inherit;
+  background: radial-gradient(circle at 50% 45%, rgba(255,255,255,.95), rgba(255,120,90,.5) 45%, transparent 75%);
+  animation: impactBurst .5s ease-out both; }
+@keyframes impactBurst { 0%{opacity:0; transform:scale(.3);} 25%{opacity:1;} 100%{opacity:0; transform:scale(1.6);} }
+/* 攻撃宣言の斬撃カットイン */
+.attack-fx { position:fixed; inset:0; z-index:55; pointer-events:none; overflow:hidden; }
+.afx-flash { position:absolute; inset:0; background:#fff; animation: afxFlash .32s ease-out forwards; }
+@keyframes afxFlash { 0%{opacity:.55;} 100%{opacity:0;} }
+.afx-slash { position:absolute; top:-25%; bottom:-25%; width:16vw; left:50%;
+  background: linear-gradient(90deg, transparent, rgba(255,255,255,.35) 38%, #fff 50%, rgba(255,255,255,.35) 62%, transparent);
+  filter: drop-shadow(0 0 14px rgba(255,240,220,.9));
+  transform: rotate(24deg) translateX(-90vw); animation: afxSweep .38s cubic-bezier(.2,.7,.3,1) forwards; }
+.afx-slash.s2 { transform: rotate(-19deg) translateX(90vw); animation: afxSweepR .38s cubic-bezier(.2,.7,.3,1) .08s forwards; width:10vw; opacity:.85; }
+@keyframes afxSweep  { 0%{transform:rotate(24deg) translateX(-90vw); opacity:1;} 75%{opacity:1;} 100%{transform:rotate(24deg) translateX(90vw); opacity:0;} }
+@keyframes afxSweepR { 0%{transform:rotate(-19deg) translateX(90vw); opacity:.85;} 75%{opacity:.85;} 100%{transform:rotate(-19deg) translateX(-90vw); opacity:0;} }
+/* ダイレクトアタック: 赤い危険ビネット+赤みの強い斬撃 */
+.attack-fx.direct .afx-slash { background: linear-gradient(90deg, transparent, rgba(255,150,110,.4) 38%, #ffe4d6 50%, rgba(255,150,110,.4) 62%, transparent); filter: drop-shadow(0 0 16px rgba(255,90,60,.95)); }
+.afx-vignette { position:absolute; inset:0; box-shadow: inset 0 0 90px 30px rgba(226,60,30,.55); animation: afxVig .7s ease-out forwards; }
+@keyframes afxVig { 0%{opacity:0;} 25%{opacity:1;} 100%{opacity:0;} }
+/* 盤面シェイク */
+.board.shake { animation: boardShake .45s ease-out; }
+.board.shake.hard { animation: boardShakeHard .5s ease-out; }
+@keyframes boardShake { 0%,100%{transform:none;} 20%{transform:translate(-4px,2px);} 40%{transform:translate(4px,-2px);} 60%{transform:translate(-3px,-1px);} 80%{transform:translate(2px,1px);} }
+@keyframes boardShakeHard { 0%,100%{transform:none;} 15%{transform:translate(-7px,4px);} 30%{transform:translate(7px,-4px);} 45%{transform:translate(-6px,-2px);} 60%{transform:translate(5px,3px);} 80%{transform:translate(-3px,-1px);} }
+/* ダイレクトアタックを受けている側のシールド列 */
+.shield-zone.under-attack { animation: shieldAlert .55s ease-in-out infinite; border-radius:var(--r-sm); }
+@keyframes shieldAlert { 0%,100%{ background:rgba(226,60,30,.0); box-shadow:none; } 50%{ background:rgba(226,60,30,.16); box-shadow:0 0 18px rgba(226,60,30,.35); } }
+
 /* ═══ 豪華エフェクト(fx:2 — 高レアリティカード) ═══ */
 /* 常時: ホロ加工風。虹色の照り+金縁の呼吸グロー+シマー(光の帯)が周期的に走る */
 .card.premium { border-color: rgba(255,215,120,.55); animation: premiumBreath 2.6s ease-in-out infinite; }
@@ -498,6 +533,7 @@ img, svg { display:block; }
 .pc-ring { position:absolute; left:50%; top:50%; width:120px; height:120px; margin:-60px 0 0 -60px; border-radius:50%;
   border:3px solid rgba(255,220,140,.9); box-shadow:0 0 30px rgba(255,215,120,.8);
   animation: pcRing .9s ease-out both; }
+.pc-ring.r2 { border-width:2px; border-color:rgba(255,255,255,.85); animation-duration:1.1s; }
 @keyframes pcRing { 0%{transform:scale(.2); opacity:1;} 100%{transform:scale(9); opacity:0;} }
 .pc-sparks span { position:absolute; left:50%; top:60%; width:7px; height:7px; border-radius:50%;
   background: radial-gradient(circle, #fff, rgba(255,215,120,.9) 45%, transparent 72%);
@@ -520,21 +556,13 @@ img, svg { display:block; }
   15%  { opacity:1; }
   100% { transform: translateY(-190px) scale(1.1); opacity:0; }
 }
-.pc-inner { position:relative; display:flex; flex-direction:column; align-items:center; gap:14px; }
-.pc-label { font-family:var(--font-display); font-size:22px; font-weight:700; letter-spacing:.5em; text-indent:.5em; white-space:nowrap;
-  background: linear-gradient(90deg, #8a6a1f, #ffe9a8 30%, #fff 50%, #ffe9a8 70%, #8a6a1f);
-  -webkit-background-clip:text; background-clip:text; -webkit-text-fill-color:transparent;
-  filter: drop-shadow(0 0 10px rgba(255,215,120,.65));
-  animation: pcLabelIn .5s cubic-bezier(.2,1.3,.4,1) both; }
-@keyframes pcLabelIn { 0%{opacity:0; transform:translateY(-26px) scaleX(1.7); letter-spacing:1em;} 100%{opacity:1; transform:none;} }
+.pc-inner { position:relative; display:flex; flex-direction:column; align-items:center; }
 .pc-card { animation: pcCardIn .55s cubic-bezier(.2,1.35,.4,1) both, pcCardGlow 1.5s ease-in-out infinite; border-radius:var(--r-md); }
-@keyframes pcCardIn { 0%{opacity:0; transform:scale(.25) rotate(-7deg) translateY(60px);} 60%{opacity:1; transform:scale(1.12) rotate(1.5deg);} 100%{transform:scale(1) rotate(0);} }
+@keyframes pcCardIn { 0%{opacity:0; transform:scale(.25) rotate(-7deg) translateY(60px);} 60%{opacity:1; transform:scale(1.16) rotate(1.5deg);} 100%{transform:scale(1.05) rotate(0);} }
 @keyframes pcCardGlow {
-  0%,100% { filter: drop-shadow(0 0 14px rgba(255,215,120,.55)); }
-  50%     { filter: drop-shadow(0 0 30px rgba(255,225,150,.95)); }
+  0%,100% { filter: drop-shadow(0 0 16px rgba(255,215,120,.6)); }
+  50%     { filter: drop-shadow(0 0 36px rgba(255,225,150,1)); }
 }
-.pc-name { font-family:var(--font-card); font-size:17px; font-weight:700; color:#fff; text-shadow:0 0 14px rgba(255,215,120,.9), 0 1px 3px rgba(0,0,0,.8);
-  animation: pcLabelIn .5s cubic-bezier(.2,1.3,.4,1) .12s both; }
 </style>
 <script src="https://unpkg.com/peerjs@1.5.4/dist/peerjs.min.js"></script>
 <script type="module">
@@ -3346,6 +3374,7 @@ function multiCivStyles(civs){
 function cardHTML(defId,opts){
   opts=opts||{};const def=getCardDef(defId);const cls=['card'];
   if(opts.large)cls.push('lg');if(opts.tapped)cls.push('tapped');if(opts.sick)cls.push('sick');if(opts.frozen)cls.push('frozen');if(opts.attacking)cls.push('attacking');if(opts.beingHit)cls.push('being-hit');if(opts.resolving)cls.push('resolving');
+  if(opts.atkDir)cls.push('atk-'+opts.atkDir);
   if(opts.entering)cls.push('entering');if(opts.dying)cls.push('dying');
   if(opts.inert)cls.push('inert');
   if(opts.selectable&&!opts.inert)cls.push('selectable');else cls.push('not-selectable');
@@ -3469,7 +3498,7 @@ function battleZoneHTML(idx){
   const aaResolving=aa&&attackResolving();
   return `${stadiumsHTML}<div class="battle-zone">${p.battle.map(c=>{
     const opts={tapped:c.tapped,sick:c.sick,buff:c.buff,frozen:c.frozenBy!==undefined,entering:!!ui.enterFx[c.uid]};
-    if(aa){ if(c.uid===aa.attackerUid){opts.attacking=true;opts.resolving=aaResolving;} else if(aa.targetType==='creature'&&c.uid===aa.targetUid){opts.beingHit=true;opts.resolving=aaResolving;} }
+    if(aa){ if(c.uid===aa.attackerUid){opts.attacking=true;opts.resolving=aaResolving;opts.atkDir=isMyZone?'up':'down';} else if(aa.targetType==='creature'&&c.uid===aa.targetUid){opts.beingHit=true;opts.resolving=aaResolving;} }
     const cantAtk=c.frozenBy!==undefined||(c.justEntered&&oppHasSlow);
     const hasRush=getCardDef(c.defId).abilities.includes('rush');
     if(c.sick&&hasRush&&!cantAtk)opts.sick=false; // 突撃: 出たターンでも攻撃できるので「準備中」表示にしない
@@ -3515,7 +3544,9 @@ function shieldRowHTML(idx){
     for(let i=0;i<ui.breakAnim.count;i++)tiles+=shieldTileHTML(true);
   }
   const warn=p.shields.length===0?' empty-warn':'';
-  return `<div class="shield-zone${warn}">${tiles}<span class="shield-zone-label">${p.shields.length===0?'シールドなし!':p.shields.length}</span></div>`;
+  // ダイレクトアタックを受けている側のシールド列を赤く明滅させる
+  const under=(ui.attackAnim&&ui.attackAnim.direct&&game.lastAttack&&game.lastAttack.defenderIdx===idx)?' under-attack':'';
+  return `<div class="shield-zone${warn}${under}">${tiles}<span class="shield-zone-label">${p.shields.length===0?'シールドなし!':p.shields.length}</span></div>`;
 }
 function attackResolving(){
   // An attack is still being resolved while there's a block/ambush decision pending,
@@ -3697,16 +3728,14 @@ function premiereHTML(){
   if(e>1900) return '';
   const def=getCardDef(f.defId);
   if(!def) return '';
-  const label=f.kind==='spell'?'✦ 奥 義 発 動 ✦':'✦ 伝 説 降 臨 ✦';
-  const sparks=Array.from({length:12},(_,i)=>`<span style="animation-delay:${-e+i*140}ms"></span>`).join('');
+  const sparks=Array.from({length:18},(_,i)=>`<span style="animation-delay:${-e+i*90}ms"></span>`).join('');
   return `<div class="premiere-cutin" style="animation-delay:${-e}ms,${Math.max(0,1450-e)}ms">
     <div class="pc-rays" style="animation-delay:${-e}ms"></div>
     <div class="pc-ring" style="animation-delay:${-e}ms"></div>
+    <div class="pc-ring r2" style="animation-delay:${300-e}ms"></div>
     <div class="pc-sparks">${sparks}</div>
     <div class="pc-inner">
-      <div class="pc-label" style="animation-delay:${-e}ms">${label}</div>
       <div class="pc-card" style="animation-delay:${-e}ms,${-e}ms">${cardHTML(def.id,{large:true})}</div>
-      <div class="pc-name" style="animation-delay:${-e}ms">${esc(def.name)}</div>
     </div>
   </div>`;
 }
@@ -3735,7 +3764,27 @@ function centerStripHTML(){
   const rulesBtn=`<button class="btn btn-ghost btn-sm" data-action="show-rules" title="ルールを確認">📖</button>`;
   return `<div class="center-strip"><div class="turn-indicator">${homeBtn}${rulesBtn}<span class="turn-text"><span class="n">ターン${game.turnCount}</span>${esc(p.name)}の番</span>${specN>0?`<span class="spec-pill">👁 ${specN}</span>`:''}${intBanner}<button class="btn btn-primary btn-sm" data-action="end-turn" ${canEnd?'':'disabled'}>ターン終了</button></div><div class="log-feed" id="logFeed" data-action="open-log" title="クリックで試合開始からの全ログを表示">${log}</div>${!myTurn?`<div class="waiting-banner">${esc(p.name)} が行動中 — 待機中...</div>`:''}</div>`;
 }
-function renderBoard(){return `<div class="board">${opponentRowHTML()}${shieldRowHTML(other(ui.myIdx))}<div class="spectrum-bar"></div>${centerStripHTML()}<div class="spectrum-bar"></div>${shieldRowHTML(ui.myIdx)}${myRowHTML()}</div>`;}
+// 攻撃宣言の瞬間の斬撃カットイン(全アニメがopacity:0で終わるので後始末の再描画は不要)
+function attackFxHTML(){
+  if(!ui.attackAnim) return '';
+  const e=Date.now()-ui.attackAnim.ts;
+  if(e>700) return '';
+  const dly=(n)=>` style="animation-delay:${-e}ms${n>1?(','+(-e)+'ms').repeat(n-1):''}"`;
+  const direct=ui.attackAnim.direct;
+  return `<div class="attack-fx${direct?' direct':''}">
+    <div class="afx-flash"${dly(1)}></div>
+    <div class="afx-slash s1"${dly(1)}></div>
+    <div class="afx-slash s2"${dly(1)}></div>
+    ${direct?`<div class="afx-vignette"${dly(1)}></div>`:''}
+  </div>`;
+}
+function renderBoard(){
+  // 攻撃直後は盤面を短く揺らす(ダイレクトアタックは強め)
+  const aa=ui.attackAnim, e=aa?Date.now()-aa.ts:99999;
+  const shake=e<500?` shake${aa.direct?' hard':''}`:'';
+  const shakeDly=e<500?` style="animation-delay:${-e}ms"`:'';
+  return `<div class="board${shake}"${shakeDly}>${opponentRowHTML()}${shieldRowHTML(other(ui.myIdx))}<div class="spectrum-bar"></div>${centerStripHTML()}<div class="spectrum-bar"></div>${shieldRowHTML(ui.myIdx)}${myRowHTML()}</div>`;
+}
 
 /* =====================================================================
    MODALS — identical to v3
@@ -4165,6 +4214,7 @@ class App {
     html += pendingModalHTML();
     if(!game.pending){html+=cardModalHTML();html+=graveyardModalHTML();html+=manaPayModalHTML();html+=stadiumModalHTML();}
     html += logModalHTML();
+    html += attackFxHTML();
     html += attackBannerHTML();
     html += spellBannerHTML();
     html += turnBannerHTML();
