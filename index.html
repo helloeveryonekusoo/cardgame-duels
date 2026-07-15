@@ -468,6 +468,73 @@ img, svg { display:block; }
 /* 勝敗バナーのスタンプ演出 */
 .winner-banner { animation: stampIn .55s cubic-bezier(.2,1.4,.4,1) both; }
 @keyframes stampIn { 0%{opacity:0; transform:scale(2.2) rotate(-4deg);} 60%{opacity:1; transform:scale(.95) rotate(1deg);} 100%{transform:scale(1) rotate(0);} }
+
+/* ═══ 豪華エフェクト(fx:2 — 高レアリティカード) ═══ */
+/* 常時: ホロ加工風。虹色の照り+金縁の呼吸グロー+シマー(光の帯)が周期的に走る */
+.card.premium { border-color: rgba(255,215,120,.55); animation: premiumBreath 2.6s ease-in-out infinite; }
+@keyframes premiumBreath {
+  0%,100% { box-shadow: 0 0 4px 1px rgba(255,205,100,.35), var(--shadow-1); }
+  50%     { box-shadow: 0 0 11px 3px rgba(255,215,120,.65), var(--shadow-1); }
+}
+.card-holo { position:absolute; inset:0; pointer-events:none; border-radius:inherit; z-index:4; overflow:hidden;
+  background: linear-gradient(115deg, rgba(255,80,80,.06), rgba(255,220,120,.09) 25%, rgba(120,255,160,.07) 50%, rgba(120,180,255,.09) 75%, rgba(230,120,255,.07));
+  mix-blend-mode: screen; }
+.card-holo::after { content:''; position:absolute; top:-30%; bottom:-30%; left:-80%; width:55%;
+  background: linear-gradient(105deg, transparent, rgba(255,255,255,.38) 45%, rgba(255,255,255,.6) 50%, rgba(255,255,255,.38) 55%, transparent);
+  transform: skewX(-18deg); animation: holoSweep 3.2s ease-in-out infinite; }
+@keyframes holoSweep { 0%{left:-80%;} 55%{left:130%;} 100%{left:130%;} }
+
+/* 召喚/呪文発動時: 全画面カットイン(暗転+回転光背+衝撃波+粒子+カード拡大) */
+.premiere-cutin { position:fixed; inset:0; z-index:70; pointer-events:none; overflow:hidden;
+  display:flex; align-items:center; justify-content:center;
+  background: radial-gradient(ellipse at center, rgba(30,16,50,.55) 0%, rgba(0,0,0,.9) 78%);
+  animation: pcFadeIn .3s ease-out both, pcFadeOut .45s ease-in 1.45s forwards; }
+@keyframes pcFadeIn  { from{opacity:0;} to{opacity:1;} }
+@keyframes pcFadeOut { to{opacity:0;} }
+.pc-rays { position:absolute; left:50%; top:50%; width:170vmax; height:170vmax; margin:-85vmax 0 0 -85vmax; border-radius:50%;
+  background: repeating-conic-gradient(from 0deg, rgba(255,215,120,.15) 0deg 8deg, transparent 8deg 24deg);
+  animation: pcSpin 7s linear infinite; }
+@keyframes pcSpin { to{ transform: rotate(360deg); } }
+.pc-ring { position:absolute; left:50%; top:50%; width:120px; height:120px; margin:-60px 0 0 -60px; border-radius:50%;
+  border:3px solid rgba(255,220,140,.9); box-shadow:0 0 30px rgba(255,215,120,.8);
+  animation: pcRing .9s ease-out both; }
+@keyframes pcRing { 0%{transform:scale(.2); opacity:1;} 100%{transform:scale(9); opacity:0;} }
+.pc-sparks span { position:absolute; left:50%; top:60%; width:7px; height:7px; border-radius:50%;
+  background: radial-gradient(circle, #fff, rgba(255,215,120,.9) 45%, transparent 72%);
+  animation: pcSpark 1.3s ease-out infinite; }
+.pc-sparks span:nth-child(2n)  { width:5px; height:5px; }
+.pc-sparks span:nth-child(1)  { margin-left:-150px; }
+.pc-sparks span:nth-child(2)  { margin-left:-105px; top:65%; }
+.pc-sparks span:nth-child(3)  { margin-left:-60px; }
+.pc-sparks span:nth-child(4)  { margin-left:-20px; top:68%; }
+.pc-sparks span:nth-child(5)  { margin-left:15px; }
+.pc-sparks span:nth-child(6)  { margin-left:55px; top:64%; }
+.pc-sparks span:nth-child(7)  { margin-left:100px; }
+.pc-sparks span:nth-child(8)  { margin-left:145px; top:66%; }
+.pc-sparks span:nth-child(9)  { margin-left:-130px; top:70%; }
+.pc-sparks span:nth-child(10) { margin-left:80px; top:71%; }
+.pc-sparks span:nth-child(11) { margin-left:-35px; top:72%; }
+.pc-sparks span:nth-child(12) { margin-left:125px; top:69%; }
+@keyframes pcSpark {
+  0%   { transform: translateY(0) scale(.4); opacity:0; }
+  15%  { opacity:1; }
+  100% { transform: translateY(-190px) scale(1.1); opacity:0; }
+}
+.pc-inner { position:relative; display:flex; flex-direction:column; align-items:center; gap:14px; }
+.pc-label { font-family:var(--font-display); font-size:22px; font-weight:700; letter-spacing:.5em; text-indent:.5em; white-space:nowrap;
+  background: linear-gradient(90deg, #8a6a1f, #ffe9a8 30%, #fff 50%, #ffe9a8 70%, #8a6a1f);
+  -webkit-background-clip:text; background-clip:text; -webkit-text-fill-color:transparent;
+  filter: drop-shadow(0 0 10px rgba(255,215,120,.65));
+  animation: pcLabelIn .5s cubic-bezier(.2,1.3,.4,1) both; }
+@keyframes pcLabelIn { 0%{opacity:0; transform:translateY(-26px) scaleX(1.7); letter-spacing:1em;} 100%{opacity:1; transform:none;} }
+.pc-card { animation: pcCardIn .55s cubic-bezier(.2,1.35,.4,1) both, pcCardGlow 1.5s ease-in-out infinite; border-radius:var(--r-md); }
+@keyframes pcCardIn { 0%{opacity:0; transform:scale(.25) rotate(-7deg) translateY(60px);} 60%{opacity:1; transform:scale(1.12) rotate(1.5deg);} 100%{transform:scale(1) rotate(0);} }
+@keyframes pcCardGlow {
+  0%,100% { filter: drop-shadow(0 0 14px rgba(255,215,120,.55)); }
+  50%     { filter: drop-shadow(0 0 30px rgba(255,225,150,.95)); }
+}
+.pc-name { font-family:var(--font-card); font-size:17px; font-weight:700; color:#fff; text-shadow:0 0 14px rgba(255,215,120,.9), 0 1px 3px rgba(0,0,0,.8);
+  animation: pcLabelIn .5s cubic-bezier(.2,1.3,.4,1) .12s both; }
 </style>
 <script src="https://unpkg.com/peerjs@1.5.4/dist/peerjs.min.js"></script>
 <script type="module">
@@ -784,7 +851,7 @@ const ABILITY_INFO = {
   tideBreak:     { label: '潮撃',        kanji: '潮',  desc: `デッキに水文明のカードが${RULES.TIDE_WATER_REQ}枚以上入っているなら、シールドを${RULES.TIDE_BREAK_COUNT}枚ブレイクする。`, note: true },
   graveSummon:   { label: '墓地召喚',    kanji: '墓',  desc: '墓地からもコストを1下げて召喚できる。', note: true },
   slowField:     { label: '時滞',        kanji: '滞',  desc: 'このクリーチャーがバトルゾーンにある間、相手のクリーチャーは出たターンに攻撃できない。', note: true },
-  rush:          { label: '突撃',        kanji: '突',  desc: 'このクリーチャーは出たターンでも、相手のクリーチャーを攻撃できる(プレイヤーは攻撃できない)。', note: true },
+  rush:          { label: '突撃',        kanji: '突',  desc: 'このクリーチャーは出たターンでも、相手のクリーチャーを攻撃できる。そのターンはアンタップ状態のクリーチャーも攻撃できる(プレイヤーは攻撃できない)。', note: true },
 };
 
 function effectText(effect, isEtb) {
@@ -909,19 +976,19 @@ const RAW_CARDS = [
   {id:'d13', civ:'dark', type:'creature', name:'屍鬼将ゾンバイン', cost:7, power:8000, abilities:[], etb:{"type":"multiDiscard","count":2}},
   {id:'d14', civ:'dark', type:'spell', name:'闇の処刑', cost:3, abilities:[], effect:{"type":"destroyAny"}},
   {id:'d15', civ:'dark', type:'spell', name:'手札破壊', cost:3, abilities:[], effect:{"type":"discardCard"}},
-  {id:'m1', civ:'multi', civs:['water','light'], type:'creature', name:'時の法皇 ミラダンテXII', cost:6, power:12000, abilities:["speed","multiBreak","guard"], etb:{"type":"miradante"}},
-  {id:'m2', civ:'multi', civs:['fire','nature'], type:'creature', name:'ドキラゴン剣', cost:6, power:12000, abilities:["speed","multiBreak"], etb:{"type":"sequence","steps":[{"type":"draw","value":2},{"type":"freeSummon","budget":4}]}},
+  {id:'m1', civ:'multi', civs:['water','light'], type:'creature', name:'時の法皇 ミラダンテXII', cost:6, power:12000, abilities:["speed","multiBreak","guard"], etb:{"type":"miradante"}, fx:2},
+  {id:'m2', civ:'multi', civs:['fire','nature'], type:'creature', name:'ドキラゴン剣', cost:6, power:12000, abilities:["speed","multiBreak"], etb:{"type":"sequence","steps":[{"type":"draw","value":2},{"type":"freeSummon","budget":4}]}, fx:2},
   {id:'w18', civ:'water', type:'creature', name:'詠唱の魔導士ルーン', cost:3, power:2000, abilities:["spellBoost","freezeCast"]},
   {id:'w19', civ:'water', type:'creature', name:'蒼波の襲撃者ザッパ', cost:4, power:3000, abilities:["speed","tideBreak"]},
   {id:'w20', civ:'water', type:'stadium', name:'魔導書院アカシア', cost:2, abilities:[], text:'呪文を使うとき、その呪文をこの下に置くことでカードを1枚引いてよい。自分のターン終了時、下に呪文が4枚あれば、このカードと下のカードを墓地に置き、手札の呪文を1枚コストを支払わずに唱えてよい。'},
   {id:'w21', civ:'water', type:'spell', name:'大海の創世', cost:15, abilities:[], effect:{"type":"sequence","steps":[{"type":"draw","value":3},{"type":"reviveSummon","count":3}]}},
   {id:'d18', civ:'dark', type:'spell', name:'闇との取引', cost:1, abilities:[], effect:{"type":"sequence","steps":[{"type":"draw","value":2},{"type":"selfDiscard"}]}},
-  {id:'m3', civ:'multi', civs:['dark','nature'], type:'creature', name:'腐土の巨人ヨルムン', cost:5, power:8000, abilities:["guard","graveSummon","slowField"], etb:{"type":"sequence","steps":[{"type":"destroyPowerLE","value":2000},{"type":"destroyPowerLE","value":2000}]}},
-  {id:'m4', civ:'multi', civs:['fire','light'], type:'creature', name:'閃光の騎士団長レイ', cost:5, power:4000, abilities:["speed"], etb:{"type":"placeLimit"}},
+  {id:'m3', civ:'multi', civs:['dark','nature'], type:'creature', name:'腐土の巨人ヨルムン', cost:5, power:8000, abilities:["guard","graveSummon","slowField"], etb:{"type":"sequence","steps":[{"type":"destroyPowerLE","value":2000},{"type":"destroyPowerLE","value":2000}]}, fx:2},
+  {id:'m4', civ:'multi', civs:['fire','light'], type:'creature', name:'閃光の騎士団長レイ', cost:5, power:4000, abilities:["speed"], etb:{"type":"placeLimit"}, fx:2},
   {id:'n16', civ:'nature', type:'creature', name:'豊穣の神恩ワルツ', cost:3, power:2000, abilities:[], etb:{"type":"peekAllocate"}},
   {id:'n17', civ:'nature', type:'creature', name:'収穫の樹人ポモナ', cost:4, power:4000, abilities:["guard"], etb:{"type":"sequence","steps":[{"type":"multiRamp","count":2},{"type":"manaToHand"}]}},
   {id:'d16', civ:'dark', type:'creature', name:'盾喰らいの大悪魔グラトニス', cost:7, power:9000, abilities:["speed","powerBreak"], etb:{"type":"reduceShieldsTo","value":3}},
-  {id:'m5', civ:'multi', civs:['fire','nature','water'], type:'creature', name:'焔嵐の荒獣ヴォルガナ', cost:4, power:6000, abilities:["shieldTrigger","multiBreak","guard","rush"]},
+  {id:'m5', civ:'multi', civs:['fire','nature','water'], type:'creature', name:'焔嵐の荒獣ヴォルガナ', cost:4, power:6000, abilities:["shieldTrigger","multiBreak","guard","rush"], fx:2},
   {id:'m6', civ:'multi', civs:['fire','water'], type:'creature', name:'熱湯の襲撃者ボイル', cost:3, power:5000, abilities:["speed","tideBreak"]},
   {id:'w22', civ:'water', type:'spell', name:'忘却の海淵', cost:5, abilities:["shieldTrigger"], effect:{"type":"sendToLost","value":2}},
   {id:'f16', civ:'fire', type:'creature', name:'巨竜狩りの戦士イグナ', cost:3, power:1000, abilities:["shieldTrigger","speed"], etb:{"type":"destroyPowerGE","value":7000}},
@@ -1100,8 +1167,10 @@ class AiPlayer {
       // 突撃持ちは召喚酔い中でもクリーチャー攻撃だけ可能
       if (c.sick && !(getCardDef(c.defId).abilities||[]).includes('rush')) continue;
       if (!c.sick) acts.push({ kind:'atkPlayer', uid:c.uid });
+      // 突撃持ちは出たターン、アンタップ状態の敵も攻撃できる
+      const rushFresh = c.sick && (getCardDef(c.defId).abilities||[]).includes('rush');
       for (const t of state.players[opp].battle){
-        if (t.tapped) acts.push({ kind:'atkCreature', uid:c.uid, target:t.uid });
+        if (t.tapped || rushFresh) acts.push({ kind:'atkCreature', uid:c.uid, target:t.uid });
       }
     }
     return acts;
@@ -1367,11 +1436,13 @@ class AiPlayer {
       const oppHasSlow = s.players[opp].battle.some(c=>getCardDef(c.defId).abilities.includes('slowField'));
       const attackers = s.players[meIdx].battle.filter(c=>!c.tapped&&(!c.sick||(getCardDef(c.defId).abilities||[]).includes('rush'))&&c.frozenBy===undefined&&!(c.justEntered&&oppHasSlow));
       if (attackers.length === 0) break;
-      // 候補: 各アタッカーで本体攻撃 or タップ済み敵の除去(酔い中の突撃持ちはクリーチャー攻撃のみ)
+      // 候補: 各アタッカーで本体攻撃 or 敵クリーチャーの除去
+      // (酔い中の突撃持ちはクリーチャー攻撃のみ。出たターンはアンタップ状態も攻撃できる)
       const cands = [];
       for (const a of attackers){
         if (!a.sick) cands.push({ kind:'atkPlayer', uid:a.uid });
-        for (const t of s.players[opp].battle){ if (t.tapped) cands.push({ kind:'atkCreature', uid:a.uid, target:t.uid }); }
+        const rushFresh = a.sick && (getCardDef(a.defId).abilities||[]).includes('rush');
+        for (const t of s.players[opp].battle){ if (t.tapped || rushFresh) cands.push({ kind:'atkCreature', uid:a.uid, target:t.uid }); }
       }
       if (cands.length === 0) break;
       // lethalモードでは本体攻撃を最優先で選ぶ
@@ -1518,20 +1589,42 @@ class GameEngine {
   return Math.max(RULES.SPELL_MIN_COST, cost);
 }
   
+  // 文明条件のマッチング: 各文明に「別々の」マナを1枚ずつ割り当てる。
+  // 多色マナは持っている文明にしか割り当てられず、1枚で1文明分しか満たせない。
+  // 成立すれば割り当てたマナのインデックス配列、不成立ならnullを返す。
+  matchCivs(manaCards, civs) {
+  const used = new Array(manaCards.length).fill(false);
+  const picked = [];
+  const tryAssign = (i) => {
+    if (i >= civs.length) return true;
+    for (let j = 0; j < manaCards.length; j++) {
+      if (used[j]) continue;
+      if (this.manaCivs(manaCards[j]).includes(civs[i])) {
+        used[j] = true; picked.push(j);
+        if (tryAssign(i + 1)) return true;
+        used[j] = false; picked.pop();
+      }
+    }
+    return false;
+  };
+  return tryAssign(0) ? picked : null;
+}
   canPay(p, def, costOverride) {
   const cost = (costOverride !== undefined) ? costOverride : def.cost;
   const untapped = p.mana.filter(m => !m.tapped);
   if (untapped.length < cost) return false;
   const civs = def.civs || [def.civ];
-  return civs.every(cv => untapped.some(m => this.manaCivs(m).includes(cv)));
+  return this.matchCivs(untapped, civs) !== null;
 }
   payMana(p, def, costOverride) {
   const cost = (costOverride !== undefined) ? costOverride : def.cost;
   const civs = def.civs || [def.civ];
+  const untapped = p.mana.filter(m => !m.tapped);
+  const picked = this.matchCivs(untapped, civs) || [];
   let paid = 0;
-  for (const cv of civs) {
-    const m = p.mana.find(x => !x.tapped && this.manaCivs(x).includes(cv));
-    if (m) { m.tapped = true; paid++; }
+  for (const j of picked) {
+    if (paid >= cost) break;
+    untapped[j].tapped = true; paid++;
   }
   for (const m of p.mana) {
     if (paid >= cost) break;
@@ -1545,7 +1638,7 @@ class GameEngine {
   const cards = uids.map(u => p.mana.find(m => m.uid === u && !m.tapped));
   if (cards.some(c => !c)) return false;
   const civs = def.civs || [def.civ];
-  return civs.every(cv => cards.some(c => this.manaCivs(c).includes(cv)));
+  return this.matchCivs(cards, civs) !== null;
 }
 
   playCard(state, cardUid, manaUids) {
@@ -2024,7 +2117,8 @@ class GameEngine {
     const card = this.removeFromHand(p, chosenUid);
     if (card) {
       const d = getCardDef(card.defId);
-      const inst = { uid: card.uid, defId: card.defId, tapped: false, sick: !d.abilities.includes('speed'), buff: 0 };
+      // placeCreatureと同じ形にする(justEnteredが無いと時滞(slowField)をすり抜けてしまう)
+      const inst = { uid: card.uid, defId: card.defId, tapped: false, sick: !d.abilities.includes('speed'), buff: 0, justEntered: true };
       p.battle.push(inst);
       this.log(state, `${p.name} が「${d.name}」(コスト${d.cost}) を無料で召喚した!`);
       const rem = (budget || 0) - d.cost;
@@ -2146,7 +2240,9 @@ class GameEngine {
   if (targetType === 'creature' && !opp.battle.find(c => c.uid === targetUid)) return { ok: false, reason: 'invalid-target' };
   if (targetType === 'creature') {
     const tgt = opp.battle.find(c => c.uid === targetUid);
-    if (!tgt.tapped) return { ok: false, reason: 'cannot-attack-untapped' };
+    // 突撃: 出たターン(召喚酔い中)はアンタップ状態のクリーチャーも攻撃できる
+    const rushFresh = attacker.sick && getCardDef(attacker.defId).abilities.includes('rush');
+    if (!tgt.tapped && !rushFresh) return { ok: false, reason: 'cannot-attack-untapped' };
   }
 
   p.acted = true;
@@ -2323,6 +2419,7 @@ const ui = {
   manaFx: {}, prevManaUids: null,          // マナチャージポップ (uid→ts)
   handFx: {}, prevHandUids: null,          // ドローポップ (uid→ts)
   drawFxBack: {},                          // 相手手札(裏面)のドローポップ (playerIdx→ts)
+  premiereFx: null,                        // 豪華カード(fx:2)のカットイン {defId,kind,ts}
   rulesView: false,  // ルール確認モーダル(全画面共通)
   logView: false,    // 試合ログ全文モーダル(対戦中)
 };
@@ -3255,11 +3352,14 @@ function cardHTML(defId,opts){
   if(opts.selected)cls.push('selected-attacker');if(opts.validTarget)cls.push('valid-target');
   const da=[];if(opts.action&&!opts.inert)da.push(`data-action="${opts.action}"`);if(opts.uid)da.push(`data-uid="${esc(opts.uid)}"`);if(def.civs)da.push(`data-multi="${def.civs.join('-')}"`);
   const mg=(def.civs&&def.civs.length>1)?multiCivStyles(def.civs):null;
+  // 豪華エフェクト(fx:2): ホロ加工風の常時シマー+金縁グロー
+  const premium=def.fx>=2;
+  if(premium)cls.push('premium');
   return `<div class="${cls.join(' ')}" data-civ="${def.civ}" ${da.join(' ')}>
     <div class="card-head"${mg?mg.head:''}><div class="card-cost">${def.cost}</div><div class="card-name">${esc(def.name)}</div></div>
     <div class="card-art"${mg?mg.art:''}>${CIV_ICON[def.civ]}</div>
     <div class="card-body"><div class="card-text">${esc(def.text)}</div></div>
-    ${cardFootHTML(def,opts)}${opts.sick?'<div class="card-sick-tag">準備中</div>':''}${opts.frozen?'<div class="card-frozen-tag">凍 結</div>':''}
+    ${cardFootHTML(def,opts)}${opts.sick?'<div class="card-sick-tag">準備中</div>':''}${opts.frozen?'<div class="card-frozen-tag">凍 結</div>':''}${premium?'<div class="card-holo"></div>':''}
   </div>`;
 }
 function cardBackHTML(large,extraCls){ return `<div class="card card-back not-selectable${large?' lg':''}${extraCls||''}" style="height:${large?'196px':'110px'};"><div class="mark"></div></div>`; }
@@ -3358,7 +3458,6 @@ function battleZoneHTML(idx){
   const p=getPlayer(idx),isMyZone=idx===ui.myIdx,canAct=isMyDecision(),tgt=!!ui.selectedAttackerUid;
   const oppP=getPlayer(other(idx));
   const oppHasSlow=oppP.battle.some(c=>getCardDef(c.defId).abilities.includes('slowField'));
-  const oppHasTapped=oppP.battle.some(c=>c.tapped);
   const stadiumsHTML=(p.stadiums&&p.stadiums.length)?`<div class="stadium-row">${p.stadiums.map(s=>{
     const sd=getCardDef(s.defId);
     return `<div class="stadium-tile" data-action="view-stadium" data-uid="${esc(s.uid)}" data-owner="${idx}"><span class="stadium-name">${esc(sd.name)}</span><span class="stadium-cnt${s.under.length>=4?' ready':''}">${s.under.length}/4</span></div>`;
@@ -3374,9 +3473,12 @@ function battleZoneHTML(idx){
     const cantAtk=c.frozenBy!==undefined||(c.justEntered&&oppHasSlow);
     const hasRush=getCardDef(c.defId).abilities.includes('rush');
     if(c.sick&&hasRush&&!cantAtk)opts.sick=false; // 突撃: 出たターンでも攻撃できるので「準備中」表示にしない
-    const atkSel=!c.tapped&&!cantAtk&&(!c.sick||(hasRush&&oppHasTapped));
+    // 突撃持ちは出たターン、アンタップ状態の敵も攻撃できる(マッハファイター仕様)
+    const atkSel=!c.tapped&&!cantAtk&&(!c.sick||(hasRush&&oppP.battle.length>0));
     if(tgt&&canAct&&!isMyZone){
-      if(c.tapped){opts.selectable=true;opts.validTarget=true;opts.action='attack-creature';opts.uid=c.uid;}
+      const selAtk=getPlayer(ui.myIdx).battle.find(x=>x.uid===ui.selectedAttackerUid);
+      const rushFresh=!!selAtk&&selAtk.sick&&getCardDef(selAtk.defId).abilities.includes('rush');
+      if(c.tapped||rushFresh){opts.selectable=true;opts.validTarget=true;opts.action='attack-creature';opts.uid=c.uid;}
       else{opts.selectable=true;opts.action='view-card';opts.uid=c.uid;}
     }
     else if(tgt&&canAct&&isMyZone){if(c.uid===ui.selectedAttackerUid){opts.selectable=true;opts.selected=true;opts.action='cancel-attack';}else if(atkSel){opts.selectable=true;opts.action='select-attacker';opts.uid=c.uid;}else{opts.selectable=true;opts.action='view-card';opts.uid=c.uid;}}
@@ -3487,6 +3589,12 @@ function resetBattleFx(){
   ui.turnBanner=null; ui.prevTurnKey=null; ui.spellBanner=null; ui.prevSpellSeq=0;
   ui.enterFx={}; ui.prevBattleUids=null; ui.deathFx=[];
   ui.manaFx={}; ui.prevManaUids=null; ui.handFx={}; ui.prevHandUids=null; ui.drawFxBack={};
+  ui.premiereFx=null;
+}
+// 豪華カード(fx:2)のカットインを開始する
+function firePremiere(defId,kind){
+  ui.premiereFx={defId,kind,ts:Date.now()};
+  setTimeout(()=>{ if(ui.premiereFx&&Date.now()-ui.premiereFx.ts>=1900){ui.premiereFx=null;render();} },2000);
 }
 // ターン開始バナー(「あなたのターン」/「相手のターン」)
 function detectTurnBanner(){
@@ -3507,6 +3615,8 @@ function detectSpellBanner(){
   ui.prevSpellSeq=ls.seq;
   const def=getCardDef(ls.defId);
   if(!def) return;
+  // 豪華カードの呪文は専用カットインで演出する(通常バナーは出さない)
+  if(def.fx>=2){ firePremiere(ls.defId,'spell'); return; }
   ui.spellBanner={ name:def.name, civ:def.civ, civs:def.civs||null, ts:Date.now() };
   setTimeout(()=>{ if(ui.spellBanner&&Date.now()-ui.spellBanner.ts>=1400){ui.spellBanner=null;render();} },1500);
 }
@@ -3526,7 +3636,14 @@ function detectZoneFx(){
       const prev=ui.prevBattleUids[i], prevSet=new Set(prev.map(x=>x.uid)), curSet=new Set(p.battle.map(c=>c.uid));
       // 召喚: 前回いなかったクリーチャー(大量出現はゲーム切替とみなして抑制)
       const entered=p.battle.filter(c=>!prevSet.has(c.uid));
-      if(entered.length>0&&entered.length<=4){ entered.forEach(c=>{ui.enterFx[c.uid]=now;}); added=true; }
+      if(entered.length>0&&entered.length<=4){
+        entered.forEach(c=>{
+          ui.enterFx[c.uid]=now;
+          const d=getCardDef(c.defId);
+          if(d&&d.fx>=2) firePremiere(c.defId,'summon'); // 豪華カードは降臨カットイン
+        });
+        added=true;
+      }
       // 破壊: 場から消えて墓地/ロストに行ったカードだけゴースト表示(バウンス等は除外)
       const gone=prev.filter(x=>!curSet.has(x.uid));
       if(gone.length){
@@ -3572,6 +3689,26 @@ function turnBannerHTML(){
   const txt=ui.role==='spectator'?`${esc(t.name)}のターン`:(t.mine?'あなたのターン':'相手のターン');
   const dly=`animation-delay:${-e}ms,${Math.max(0,950-e)}ms;`;
   return `<div class="turn-banner${t.mine?' mine':' theirs'}" style="${dly}"><div class="tb-text">${txt}</div></div>`;
+}
+// 豪華カード(fx:2)のカットイン。再描画でもアニメが継続するよう全要素に負のdelayを入れる
+function premiereHTML(){
+  if(!ui.premiereFx) return '';
+  const f=ui.premiereFx, e=Date.now()-f.ts;
+  if(e>1900) return '';
+  const def=getCardDef(f.defId);
+  if(!def) return '';
+  const label=f.kind==='spell'?'✦ 奥 義 発 動 ✦':'✦ 伝 説 降 臨 ✦';
+  const sparks=Array.from({length:12},(_,i)=>`<span style="animation-delay:${-e+i*140}ms"></span>`).join('');
+  return `<div class="premiere-cutin" style="animation-delay:${-e}ms,${Math.max(0,1450-e)}ms">
+    <div class="pc-rays" style="animation-delay:${-e}ms"></div>
+    <div class="pc-ring" style="animation-delay:${-e}ms"></div>
+    <div class="pc-sparks">${sparks}</div>
+    <div class="pc-inner">
+      <div class="pc-label" style="animation-delay:${-e}ms">${label}</div>
+      <div class="pc-card" style="animation-delay:${-e}ms,${-e}ms">${cardHTML(def.id,{large:true})}</div>
+      <div class="pc-name" style="animation-delay:${-e}ms">${esc(def.name)}</div>
+    </div>
+  </div>`;
 }
 // 呪文発動バナー
 function spellBannerHTML(){
@@ -3658,11 +3795,9 @@ function autoSelectMana(p,def,costOverride){
   const cost=(costOverride!==undefined)?costOverride:def.cost;
   const untapped=p.mana.filter(m=>!m.tapped);
   const civs=def.civs||[def.civ];
-  const sel=[];
-  for(const cv of civs){
-    const m=untapped.find(x=>!sel.includes(x.uid)&&Engine.manaCivs(x).includes(cv));
-    if(m)sel.push(m.uid);
-  }
+  // 文明条件はエンジンと同じマッチングで割り当てる(多色マナは1枚で1文明分)
+  const picked=Engine.matchCivs(untapped,civs)||[];
+  const sel=picked.map(j=>untapped[j].uid);
   for(const m of untapped){
     if(sel.length>=cost)break;
     if(!sel.includes(m.uid))sel.push(m.uid);
@@ -3689,7 +3824,7 @@ function manaPayModalHTML(){
   const ok=Engine.validManaSelection(p,def,ui.manaSelected,payCost);
   return `<div class="modal-overlay"><div class="modal-box">
     <div class="modal-title">${ui.manaPay.fromGrave?'墓地から召喚 — ':''}マナを${payCost}枚選択 (${ui.manaSelected.length}/${payCost})</div>
-    <div style="text-align:center;font-size:12px;color:var(--text-muted);">「${esc(def.name)}」 — ${civLabel}のマナを最低1枚ずつ含めてください</div>
+    <div style="text-align:center;font-size:12px;color:var(--text-muted);">「${esc(def.name)}」 — ${civLabel}のマナを最低1枚ずつ含めてください${civs.length>1?'<br><span style="font-size:10px;">(多色マナ1枚は、持っている文明のうち1文明分にしか数えられません)</span>':''}</div>
     <div class="mana-pick-list">${chips}</div>
     <div class="modal-actions row">
       <button class="btn btn-ghost" data-action="mana-pay-cancel">キャンセル</button>
@@ -3727,7 +3862,7 @@ function rulesModalHTML(){
       <div class="rule-p">
         ① ドロー(先攻プレイヤーの最初のターンは引かない)<br>
         ② マナチャージ — 手札を1枚マナゾーンへ置ける(任意。ターンの最初の行動でのみ可能)<br>
-        ③ 召喚・呪文 — マナをタップしてコストを支払う。カードと同じ文明のマナが最低1枚必要(多色カードは各文明1枚ずつ)<br>
+        ③ 召喚・呪文 — マナをタップしてコストを支払う。カードと同じ文明のマナが最低1枚必要(多色カードは各文明1枚ずつ。多色マナ1枚は1文明分にしか数えない)<br>
         ④ アタック — タップしていない自分のクリーチャーで攻撃。出したターンは攻撃できない(召喚酔い。「速攻」持ちは除く)<br>
         ⑤ ターン終了
       </div>
@@ -4033,6 +4168,7 @@ class App {
     html += attackBannerHTML();
     html += spellBannerHTML();
     html += turnBannerHTML();
+    html += premiereHTML();
     return html;
   }
 
