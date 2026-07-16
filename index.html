@@ -880,6 +880,8 @@ const ABILITY_INFO = {
   graveSummon:   { label: '墓地召喚',    kanji: '墓',  desc: '墓地からもコストを1下げて召喚できる。', note: true },
   slowField:     { label: '時滞',        kanji: '滞',  desc: 'このクリーチャーがバトルゾーンにある間、相手のクリーチャーは出たターンに攻撃できない。', note: true },
   rush:          { label: '突撃',        kanji: '突',  desc: 'このクリーチャーは出たターンでも、相手のクリーチャーを攻撃できる。そのターンはアンタップ状態のクリーチャーも攻撃できる(プレイヤーは攻撃できない)。', note: true },
+  raid:          { label: '乱入',        kanji: '乱',  desc: '自分のクリーチャーがこのターン2回目に相手プレイヤーを攻撃した時、このクリーチャーを手札からコストを支払わずにバトルゾーンに出してよい。', note: true },
+  noRetreat:     { label: '不退',        kanji: '不',  desc: 'このクリーチャーが攻撃する時、バトルゾーンを離れない(バトルに負けても破壊されない)。', note: true },
 };
 
 function effectText(effect, isEtb) {
@@ -892,6 +894,7 @@ function effectText(effect, isEtb) {
     case 'addShield': return `${p}自分の山札の上から1枚をシールドゾーンに置く。`;
     case 'destroyPowerLE': return `${p}パワー${effect.value}以下の相手クリーチャー1体を破壊する。`;
     case 'destroyPowerGE': return `${p}パワー${effect.value}以上の相手クリーチャー1体を破壊する。`;
+    case 'destroyGuard': return `${p}「ガード」を持つ相手クリーチャー1体を選び、破壊する。`;
     case 'regrow': return `${p}自分の墓地のクリーチャー1体を手札に戻す。`;
     case 'buffPower': return `${p}自分のクリーチャー1体のパワーを+${effect.value}する(このターン中)。`;
     case 'tapCreature':    return `${p}相手のクリーチャー1体をタップする。`;
@@ -914,6 +917,7 @@ function effectText(effect, isEtb) {
     case 'peekAllocate': return `${p}自分の山札の上から3枚を見て、1枚をマナゾーンに、1枚を手札に、残りを墓地に置く。`;
     case 'manaToHand':   return `${p}自分のマナゾーンからカードを1枚選び、手札に戻す。`;
     case 'reduceShieldsTo': return `${p}相手のシールドが残り${effect.value}枚になるように墓地に置く。`;
+    case 'sendToMana': return `${p}バトルゾーンのクリーチャー1体を選び、持ち主のマナゾーンに置く。`;
     case 'sendToLost': {
       const c = effect.value > 0 ? `相手のマナの数が自分より多いなら、この呪文のコストを${effect.value}下げる。` : '';
       return `${c}${p}相手のクリーチャー1体を選び、ロストゾーンに送る(墓地に置かれず、ゲームから除外される)。`;
@@ -1015,11 +1019,14 @@ const RAW_CARDS = [
   {id:'m4', civ:'multi', civs:['fire','light'], type:'creature', name:'閃光の騎士団長レイ', cost:5, power:4000, abilities:["speed"], etb:{"type":"placeLimit"}, fx:2},
   {id:'n16', civ:'nature', type:'creature', name:'豊穣の神恩ワルツ', cost:3, power:2000, abilities:[], etb:{"type":"peekAllocate"}},
   {id:'n17', civ:'nature', type:'creature', name:'収穫の樹人ポモナ', cost:4, power:4000, abilities:["guard"], etb:{"type":"sequence","steps":[{"type":"multiRamp","count":2},{"type":"manaToHand"}]}},
-  {id:'d16', civ:'dark', type:'creature', name:'盾喰らいの大悪魔グラトニス', cost:7, power:9000, abilities:["speed","powerBreak"], etb:{"type":"reduceShieldsTo","value":3}},
+  {id:'d16', civ:'dark', type:'creature', name:'盾喰らいの大悪魔グラトニス', cost:7, power:9000, abilities:["speed","powerBreak"], etb:{"type":"reduceShieldsTo","value":3}, fx:2},
   {id:'m5', civ:'multi', civs:['fire','nature','water'], type:'creature', name:'焔嵐の荒獣ヴォルガナ', cost:4, power:6000, abilities:["shieldTrigger","multiBreak","guard","rush"], fx:2},
-  {id:'m6', civ:'multi', civs:['fire','water'], type:'creature', name:'熱湯の襲撃者ボイル', cost:3, power:5000, abilities:["speed","tideBreak"]},
+  {id:'m6', civ:'multi', civs:['fire','water'], type:'creature', name:'熱湯の襲撃者ボイル', cost:3, power:2000, abilities:["speed","tideBreak"]},
   {id:'w22', civ:'water', type:'spell', name:'忘却の海淵', cost:5, abilities:["shieldTrigger"], effect:{"type":"sendToLost","value":2}},
   {id:'f16', civ:'fire', type:'creature', name:'巨竜狩りの戦士イグナ', cost:3, power:1000, abilities:["shieldTrigger","speed"], etb:{"type":"destroyPowerGE","value":7000}},
+  {id:'n18', civ:'nature', type:'spell', name:'大地への回帰', cost:3, abilities:["shieldTrigger"], effect:{"type":"sendToMana"}},
+  {id:'d19', civ:'dark', type:'spell', name:'虚無への葬送', cost:4, abilities:["shieldTrigger"], effect:{"type":"sendToLost","value":0}},
+  {id:'m7', civ:'multi', civs:['fire','dark'], type:'creature', name:'鬼哭の魔竜帝ガルヴァロス', cost:7, power:12000, abilities:["speed","multiBreak","raid","noRetreat"], etb:{"type":"destroyGuard"}, fx:2},
 ];
 /* ═══════════════════════════════════════════════════════════════
    カードまわりのロジック(カードのデータ本体は cards-data.js)
@@ -1114,6 +1121,7 @@ class AiPlayer {
         if (ab.includes('powerBreak')) score += sign * 12;
         if (ab.includes('tideBreak'))  score += sign * 8;
         if (ab.includes('deathtouch')) score += sign * 8;
+        if (ab.includes('noRetreat'))  score += sign * 8;
         // 攻撃できる状態(アンタップ・酔ってない・凍ってない)のアタッカーは価値が高い(突撃は酔い中でも可)
         const canAttack = !c.tapped && (!c.sick || ab.includes('rush')) && c.frozenBy===undefined && !(c.justEntered && enemyHasSlow);
         if (canAttack) score += sign * 9;
@@ -1257,11 +1265,22 @@ class AiPlayer {
         };
         if (['destroy','destroyAny','tap','bounce','freeze','toLost'].includes(kind)){
           chosen = pickStrongest(pend.options, state.players[other(ctrl)].battle);
+        } else if (kind === 'toMana'){
+          // 相手側の一番強いクリーチャーを優先してマナ送り。相手が居なければ自分の一番弱いのを送る
+          const oppB = state.players[other(ctrl)].battle;
+          const oppUids = pend.options.filter(u => oppB.some(c => c.uid === u));
+          if (oppUids.length){ chosen = pickStrongest(oppUids, oppB); }
+          else {
+            let w=null,wp=1e9; for(const u of pend.options){const c=state.players[ctrl].battle.find(x=>x.uid===u);if(!c)continue;const p=Engine.effectivePower(c);if(p<wp){wp=p;w=u;}} chosen=w||pend.options[0];
+          }
         } else if (kind === 'buff'){
           chosen = pickStrongest(pend.options, state.players[ctrl].battle);
         } else if (kind === 'freeSummon' || kind === 'reviveSummon'){
           const hand = [...state.players[ctrl].hand, ...state.players[ctrl].graveyard];
           chosen = pickStrongest(pend.options, hand);
+        } else if (kind === 'raidSummon'){
+          // 乱入は無料召喚なので常に一番強いのを出す
+          chosen = pickStrongest(pend.options, state.players[ctrl].hand);
         } else if (kind === 'regrow'){
           chosen = pickStrongest(pend.options, state.players[ctrl].graveyard);
         } else if (kind === 'freeSpell' || kind === 'stadiumCast'){
@@ -1569,6 +1588,8 @@ class GameEngine {
   finishTurn(state) {
   const p = state.players[state.active];
   p.battle.forEach(c => { c.buff = 0; });
+  if (p.raidCount !== undefined) delete p.raidCount; // 乱入用の攻撃カウンタはターン限り
+
   if (state.placeLimit && state.placeLimit.lockedIdx === state.active) state.placeLimit = null;
   state.active = other(state.active);
   state.turnCount++;
@@ -1790,6 +1811,13 @@ class GameEngine {
       else state.pending = { type: 'chooseTarget', kind: 'destroy', controllerIdx, options: targets.map(c => c.uid) };
       return;
     }
+    case 'destroyGuard': {
+      const targets = opp.battle.filter(c => getCardDef(c.defId).abilities.includes('guard'));
+      if (targets.length === 0) { this.log(state, `(対象がなく何も起きなかった)`); return; }
+      if (targets.length === 1) this.resolveDestroy(state, controllerIdx, targets[0].uid);
+      else state.pending = { type: 'chooseTarget', kind: 'destroy', controllerIdx, options: targets.map(c => c.uid) };
+      return;
+    }
     case 'tapCreature': {
       const targets = opp.battle.filter(c => !c.tapped);
       if (targets.length === 0) { this.log(state, `(対象がなく何も起きなかった)`); return; }
@@ -1989,6 +2017,13 @@ class GameEngine {
       else state.pending = { type: 'chooseTarget', kind: 'toLost', controllerIdx, options: targets.map(c => c.uid) };
       return;
     }
+    case 'sendToMana': {
+      const targets = [...controller.battle, ...opp.battle];
+      if (targets.length === 0) { this.log(state, `(対象がなく何も起きなかった)`); return; }
+      if (targets.length === 1) this.resolveToMana(state, controllerIdx, targets[0].uid);
+      else state.pending = { type: 'chooseTarget', kind: 'toMana', controllerIdx, options: targets.map(c => c.uid) };
+      return;
+    }
     case 'placeLimit': {
       state.placeLimit = { lockedIdx: other(controllerIdx), remaining: RULES.PLACE_LIMIT_COUNT };
       this.log(state, `${opp.name} は次の自分のターンの終わりまで、クリーチャーを1体しか出せない！`);
@@ -1996,6 +2031,25 @@ class GameEngine {
     }
     case '_continueBreak': {
       this.doBreak(state, effect.defIdx, effect.atkIdx, effect.remaining);
+      return;
+    }
+    case '_continueAttack': {
+      // 乱入の選択後に攻撃の続き(ブロック確認→戦闘)を再開する
+      const atkP = state.players[state.active];
+      const defP = state.players[other(state.active)];
+      const attacker = atkP.battle.find(c => c.uid === effect.attackerUid);
+      if (!attacker) return;
+      const blockers = defP.battle.filter(c => !c.tapped && getCardDef(c.defId).abilities.includes('guard') && c.uid !== effect.targetUid && c.frozenBy === undefined);
+      if (blockers.length > 0) {
+        state.pending = {
+          type: 'block', attackerUid: effect.attackerUid, targetType: effect.targetType, targetUid: effect.targetUid,
+          attackerIdx: state.active, defenderIdx: other(state.active),
+          options: blockers.map(c => c.uid),
+        };
+        this.log(state, `${defP.name} はブロックを選べます。`);
+        return;
+      }
+      this.resolveCombat(state, attacker, effect.targetType, effect.targetUid, null);
       return;
     }
     case '_finishTurn': {
@@ -2067,6 +2121,18 @@ class GameEngine {
   (opp.lost = opp.lost || []).push({ uid: card.uid, defId: card.defId });
   this.log(state, `「${getCardDef(card.defId).name}」はロストゾーンに送られた!(ゲームから除外)`);
 }
+  resolveToMana(state, controllerIdx, uid) {
+  // 対象はどちらの場のクリーチャーでもよく、持ち主のマナゾーンに置く
+  for (const p of state.players) {
+    const card = this.removeFromZone(p.battle, uid);
+    if (!card) continue;
+    const cd = getCardDef(card.defId);
+    const tapped = !!(cd.civs && cd.civs.length > 1); // 多色カードはタップ状態で置く
+    p.mana.push({ uid: card.uid, defId: card.defId, tapped });
+    this.log(state, `「${cd.name}」は${p.name}のマナゾーンに置かれた${tapped ? '(多色のためタップ状態)' : ''}。`);
+    return;
+  }
+}
   resolveTap(state, controllerIdx, uid) {
   const opp = state.players[other(controllerIdx)];
   const c = this.findInZone(opp.battle, uid);
@@ -2130,6 +2196,7 @@ class GameEngine {
   else if (kind === 'buff')       this.resolveBuff(state, controllerIdx, chosenUid, value);
   else if (kind === 'destroyAny') this.resolveDestroy(state, controllerIdx, chosenUid);
   else if (kind === 'toLost')     this.resolveToLost(state, controllerIdx, chosenUid);
+  else if (kind === 'toMana')     this.resolveToMana(state, controllerIdx, chosenUid);
   else if (kind === 'freeSpell') {
     const p = state.players[controllerIdx];
     const card = this.removeFromHand(p, chosenUid);
@@ -2160,6 +2227,16 @@ class GameEngine {
           this.triggerEffect(state, controllerIdx, cont);
         }
       }
+    }
+  }
+  else if (kind === 'raidSummon') {
+    const p = state.players[controllerIdx];
+    const card = this.removeFromHand(p, chosenUid);
+    if (card) {
+      const d = getCardDef(card.defId);
+      this.placeCreature(state, controllerIdx, card, d);
+      this.log(state, `${p.name} が「${d.name}」を乱入させた!(コストを支払わずに召喚)`);
+      if (d.etb) this.triggerEffect(state, controllerIdx, d.etb);
     }
   }
   else if (kind === 'freeze') {
@@ -2288,6 +2365,22 @@ class GameEngine {
     atkName: _atkName, tgtName: _tgtName,
   };
   this.log(state, `${p.name} の「${getCardDef(attacker.defId).name}」が${targetType==='player'?'ダイレクトアタック':'攻撃'}!`);
+  // 乱入: プレイヤーへの攻撃回数を数え、このターン2回目なら手札の乱入持ちを無料で出してよい。
+  // カウンタ(raidCount)は乱入持ちが手札にある時だけ生やす(P2P/検証で状態を汚さないため)
+  if (targetType === 'player') {
+    const raidOpts = p.hand.filter(c => {
+      const d = getCardDef(c.defId);
+      return d.type === 'creature' && d.abilities.includes('raid') && this.canPlaceCreature(state, state.active, d).ok;
+    });
+    if (raidOpts.length > 0 || p.raidCount !== undefined) p.raidCount = (p.raidCount || 0) + 1;
+    if (raidOpts.length > 0 && p.raidCount === 2) {
+      state.effectQueue = state.effectQueue || [];
+      state.effectQueue.unshift({ controllerIdx: state.active, effect: { type: '_continueAttack', attackerUid, targetType, targetUid: targetUid || null } });
+      state.pending = { type: 'chooseTarget', kind: 'raidSummon', controllerIdx: state.active, skippable: true, options: raidOpts.map(c => c.uid) };
+      this.log(state, `このターン2回目の攻撃! ${p.name} は「乱入」持ちをコストを支払わずに出せる。`);
+      return { ok: true, pending: true };
+    }
+  }
   const blockers = opp.battle.filter(c => !c.tapped && getCardDef(c.defId).abilities.includes('guard') && c.uid !== targetUid && c.frozenBy === undefined);
   if (blockers.length > 0) {
     state.pending = {
@@ -2345,8 +2438,9 @@ class GameEngine {
   const aDef = getCardDef(attacker.defId), dDef = getCardDef(defender.defId);
   const atkDT = aDef.abilities.includes('deathtouch');
   const defDT = dDef.abilities.includes('deathtouch');
+  const atkNR = aDef.abilities.includes('noRetreat'); // 不退: 攻撃する側なら場を離れない
   const killDef = aPow >= dPow || atkDT;
-  const killAtk = dPow >= aPow || defDT;
+  const killAtk = (dPow >= aPow || defDT) && !atkNR;
   if (killDef) {
     this.removeFromZone(defP.battle, defender.uid);
     defP.graveyard.push({ uid: defender.uid, defId: defender.defId });
@@ -2356,8 +2450,9 @@ class GameEngine {
     atkP.graveyard.push({ uid: attacker.uid, defId: attacker.defId });
   }
   if (killDef && killAtk) this.log(state, `「${aDef.name}」と「${dDef.name}」は相打ちで両方破壊された。`);
-  else if (killDef)        this.log(state, `「${aDef.name}」(${aPow}${atkDT?'+毒針':''}) が「${dDef.name}」(${dPow}) を破壊した。`);
-  else                     this.log(state, `「${dDef.name}」(${dPow}${defDT?'+毒針':''}) が「${aDef.name}」(${aPow}) を破壊した。`);
+  else if (killDef)        this.log(state, `「${aDef.name}」(${aPow}${atkDT?'+毒針':''}) が「${dDef.name}」(${dPow}) を破壊した${(dPow >= aPow || defDT) && atkNR ? '(不退で場に残った)' : ''}。`);
+  else if (killAtk)        this.log(state, `「${dDef.name}」(${dPow}${defDT?'+毒針':''}) が「${aDef.name}」(${aPow}) を破壊した。`);
+  else                     this.log(state, `「${aDef.name}」(${aPow}) はバトルに敗れたが、不退で場に踏みとどまった。`);
 }
 
   breakShields(state, defIdx, atkIdx, count) {
@@ -3797,14 +3892,15 @@ function pendingModalHTML(){
   if(pend.type==='block'){const def=getPlayer(pend.defenderIdx),atk=getPlayer(pend.attackerIdx).battle.find(c=>c.uid===pend.attackerUid),aDef=atk?getCardDef(atk.defId):null;const opts=pend.options.map(uid=>{const c=def.battle.find(x=>x.uid===uid);return cardHTML(c.defId,{action:'block-choose',uid,selectable:true});}).join('');return `<div class="modal-overlay"><div class="modal-box"><div class="modal-title">${esc(def.name)}: ブロックしますか?</div><div style="text-align:center;font-size:12.5px;color:var(--text-muted);">「${esc(aDef?aDef.name:'')}」の攻撃</div><div class="target-grid">${opts}</div><div class="modal-actions"><button class="btn btn-ghost btn-block" data-action="block-decline">ブロックしない</button></div></div></div>`;}
   if(pend.type==='ambush'){const p=getPlayer(pend.controllerIdx),hc=p.hand.find(c=>c.uid===pend.cardUid);if(!hc)return '';const card=getCardDef(hc.defId);const stLabel=pend.isST?'S・トリガー発動!':'奇襲発動!';return `<div class="modal-overlay"><div class="modal-box"><div class="modal-title">${stLabel}</div><div class="modal-card-preview">${cardHTML(card.id,{large:true})}</div><div style="text-align:center;font-size:12.5px;color:var(--text-muted);">無料でプレイしますか?</div><div class="modal-actions row"><button class="btn btn-ghost" data-action="ambush-keep">手札に加える</button><button class="btn btn-primary" data-action="ambush-play">無料でプレイ</button></div></div></div>`;}
   if(pend.type==='chooseTarget'){
-    const labels={regrow:'墓地から戻すクリーチャーを選択',bounce:'手札に戻すクリーチャーを選択',destroy:'破壊するクリーチャーを選択',destroyAny:'破壊するクリーチャーを選択',tap:'タップするクリーチャーを選択',buff:'パワーを上げるクリーチャーを選択',freeSpell:'無料で使用する光の呪文を選択',freeSummon:'無料で召喚するクリーチャーを選択',freeze:'凍結するクリーチャーを選択',selfDiscard:'捨てるカードを選択',stadiumPlace:'呪文をどのスタジアムの下に置く?(+1ドロー)',stadiumCast:'コストを支払わずに唱える呪文を選択',reviveSummon:'場に出すクリーチャーを選択(手札/墓地)',peekMana:'マナゾーンに置くカードを選択(残りは手札→墓地へ)',peekHand:'手札に加えるカードを選択(残りは墓地へ)',manaToHand:'手札に戻すカードを選択(マナゾーン)',toLost:'ロストゾーンに送るクリーチャーを選択'};
+    const labels={regrow:'墓地から戻すクリーチャーを選択',bounce:'手札に戻すクリーチャーを選択',destroy:'破壊するクリーチャーを選択',destroyAny:'破壊するクリーチャーを選択',tap:'タップするクリーチャーを選択',buff:'パワーを上げるクリーチャーを選択',freeSpell:'無料で使用する光の呪文を選択',freeSummon:'無料で召喚するクリーチャーを選択',freeze:'凍結するクリーチャーを選択',selfDiscard:'捨てるカードを選択',stadiumPlace:'呪文をどのスタジアムの下に置く?(+1ドロー)',stadiumCast:'コストを支払わずに唱える呪文を選択',reviveSummon:'場に出すクリーチャーを選択(手札/墓地)',peekMana:'マナゾーンに置くカードを選択(残りは手札→墓地へ)',peekHand:'手札に加えるカードを選択(残りは墓地へ)',manaToHand:'手札に戻すカードを選択(マナゾーン)',toLost:'ロストゾーンに送るクリーチャーを選択',toMana:'マナゾーンに置くクリーチャーを選択(自分・相手どちらでも可)',raidSummon:'乱入! コストを支払わずに出すクリーチャーを選択'};
     let zone;
     if(pend.kind==='regrow')zone=getPlayer(pend.controllerIdx).graveyard;
     else if(pend.kind==='buff')zone=getPlayer(pend.controllerIdx).battle;
-    else if(pend.kind==='freeSpell'||pend.kind==='freeSummon'||pend.kind==='selfDiscard'||pend.kind==='stadiumCast')zone=getPlayer(pend.controllerIdx).hand;
+    else if(pend.kind==='freeSpell'||pend.kind==='freeSummon'||pend.kind==='selfDiscard'||pend.kind==='stadiumCast'||pend.kind==='raidSummon')zone=getPlayer(pend.controllerIdx).hand;
     else if(pend.kind==='reviveSummon')zone=[...getPlayer(pend.controllerIdx).hand,...getPlayer(pend.controllerIdx).graveyard];
     else if(pend.kind==='peekMana'||pend.kind==='peekHand')zone=pend.cards||[];
     else if(pend.kind==='manaToHand')zone=getPlayer(pend.controllerIdx).mana;
+    else if(pend.kind==='toMana')zone=[...getPlayer(pend.controllerIdx).battle,...getPlayer(other(pend.controllerIdx)).battle];
     else zone=getPlayer(other(pend.controllerIdx)).battle;
     let opts;
     if(pend.kind==='stadiumPlace'){
@@ -3814,7 +3910,7 @@ function pendingModalHTML(){
       opts=pend.options.map(uid=>{const c=zone.find(x=>x.uid===uid);if(!c)return '';return cardHTML(c.defId,{action:'target-choose',uid,selectable:true});}).join('');
     }
     const multiNote=pend.multi&&pend.multi>1?`<div style="text-align:center;font-size:11px;color:var(--text-muted);">あと${pend.multi}体選べます</div>`:pend.kind==='freeSummon'?`<div style="text-align:center;font-size:11px;color:var(--text-muted);">残りコスト: ${pend.budget}</div>`:'';
-    const skipLabels={stadiumPlace:'下に置かない(墓地へ)',freeze:'凍結しない',stadiumCast:'唱えない',reviveSummon:'これで終える',freeSummon:'これで終える',freeSpell:'使用しない'};
+    const skipLabels={stadiumPlace:'下に置かない(墓地へ)',freeze:'凍結しない',stadiumCast:'唱えない',reviveSummon:'これで終える',freeSummon:'これで終える',freeSpell:'使用しない',raidSummon:'乱入しない'};
     const skipBtn=pend.skippable?`<div class="modal-actions"><button class="btn btn-ghost btn-block" data-action="target-skip">${skipLabels[pend.kind]||'使用しない'}</button></div>`:'';
     return `<div class="modal-overlay"><div class="modal-box"><div class="modal-title">${esc(labels[pend.kind]||'対象を選択')}</div>${multiNote}<div class="target-grid">${opts}</div>${skipBtn}</div></div>`;
   }
